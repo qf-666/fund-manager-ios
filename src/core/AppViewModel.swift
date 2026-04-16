@@ -11,9 +11,12 @@ final class AppViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var lastUpdated: Date?
 
+    let autoRefreshInterval: TimeInterval = 10
+
     private let api: EastMoneyAPIProtocol
     private let store: PersistenceStore
     private var hasBootstrapped = false
+    private var autoRefreshTask: Task<Void, Never>?
 
     init(api: EastMoneyAPIProtocol = EastMoneyAPI(), store: PersistenceStore = .shared) {
         self.api = api
@@ -56,6 +59,25 @@ final class AppViewModel: ObservableObject {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
         await refreshAll(force: true)
+    }
+
+    func startAutoRefresh() {
+        guard autoRefreshTask == nil else { return }
+
+        autoRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { break }
+                let interval = UInt64(self.autoRefreshInterval * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: interval)
+                guard !Task.isCancelled else { break }
+                await self.refreshAll()
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
     }
 
     func refreshAll(force: Bool = false) async {

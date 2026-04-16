@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct ZhihuFundsApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = AppViewModel()
 
     var body: some Scene {
@@ -11,6 +12,20 @@ struct ZhihuFundsApp: App {
                 .preferredColorScheme(viewModel.state.theme.colorScheme)
                 .task {
                     await viewModel.bootstrap()
+                    if scenePhase == .active {
+                        viewModel.startAutoRefresh()
+                    }
+                }
+                .onChange(of: scenePhase) { newPhase in
+                    switch newPhase {
+                    case .active:
+                        viewModel.startAutoRefresh()
+                        Task { await viewModel.refreshAll(force: true) }
+                    case .inactive, .background:
+                        viewModel.stopAutoRefresh()
+                    @unknown default:
+                        viewModel.stopAutoRefresh()
+                    }
                 }
         }
     }

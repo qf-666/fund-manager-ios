@@ -24,6 +24,7 @@ struct SettingsView: View {
             Section("数据") {
                 LabeledContent("设备 ID", value: viewModel.state.deviceId)
                     .font(.caption)
+                LabeledContent("自动刷新", value: "每 10 秒自动刷新")
                 if let lastUpdated = viewModel.lastUpdated {
                     LabeledContent("最近刷新", value: lastUpdated.formatted(date: .abbreviated, time: .shortened))
                 }

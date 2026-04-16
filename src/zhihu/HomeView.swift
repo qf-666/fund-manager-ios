@@ -10,16 +10,16 @@ struct HomeView: View {
         List {
             Section {
                 LazyVGrid(columns: gridColumns, spacing: 12) {
-                    MetricCard(title: "总成本", value: DisplayFormatter.currency(viewModel.summary.totalCost), subtitle: "已录入持仓成本")
-                    MetricCard(title: "当前市值", value: DisplayFormatter.currency(viewModel.summary.totalMarketValue), subtitle: "按最新净值估算")
+                    MetricCard(title: "持仓成本", value: DisplayFormatter.currency(viewModel.summary.totalCost), subtitle: "按单位成本 × 持有份额汇总")
+                    MetricCard(title: "持仓市值", value: DisplayFormatter.currency(viewModel.summary.totalMarketValue), subtitle: "按最新净值估算")
                     MetricCard(
-                        title: "累计浮盈",
+                        title: "累计收益",
                         value: DisplayFormatter.signedCurrency(viewModel.summary.totalPnL),
                         subtitle: viewModel.summary.totalReturnPercent.map { DisplayFormatter.percent($0) } ?? "等待持仓数据",
                         tint: viewModel.summary.totalPnL.trendColor
                     )
                     MetricCard(
-                        title: "今日变化",
+                        title: "今日收益",
                         value: DisplayFormatter.signedCurrency(viewModel.summary.dailyPnL),
                         subtitle: viewModel.lastUpdated.map { "更新于 \($0.formatted(date: .omitted, time: .shortened))" } ?? "尚未刷新",
                         tint: viewModel.summary.dailyPnL.trendColor
@@ -183,7 +183,7 @@ private struct FundRow: View {
                     .foregroundStyle(.secondary)
 
                 if holding.hasPosition {
-                    Text("份额 \(DisplayFormatter.price(holding.shares)) · 成本 \(DisplayFormatter.price(holding.costPerUnit))")
+                    Text("持有份额 \(DisplayFormatter.price(holding.shares)) · 单位成本 \(DisplayFormatter.price(holding.costPerUnit))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -215,19 +215,19 @@ private struct FundRow: View {
                 }
 
                 if let marketValue {
-                    Text("市值 \(DisplayFormatter.currency(marketValue))")
+                    Text("持仓市值 \(DisplayFormatter.currency(marketValue))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 if let totalPnL {
-                    Text("浮盈 \(DisplayFormatter.signedCurrency(totalPnL))")
+                    Text("累计收益 \(DisplayFormatter.signedCurrency(totalPnL))")
                         .font(.caption)
                         .foregroundStyle(totalPnL.trendColor)
                 }
 
                 if let dailyPnL {
-                    Text("今日 \(DisplayFormatter.signedCurrency(dailyPnL))")
+                    Text("今日收益 \(DisplayFormatter.signedCurrency(dailyPnL))")
                         .font(.caption2)
                         .foregroundStyle(dailyPnL.trendColor)
                 }

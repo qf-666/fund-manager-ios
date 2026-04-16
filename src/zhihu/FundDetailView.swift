@@ -90,12 +90,12 @@ struct FundDetailView: View {
             let dailyPnL = viewModel.dailyPnL(for: holding)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                statPill(title: "持仓份额", value: DisplayFormatter.price(holding.shares))
-                statPill(title: "成本价", value: DisplayFormatter.price(holding.costPerUnit))
-                statPill(title: "总成本", value: DisplayFormatter.currency(totalCost))
-                statPill(title: "当前市值", value: marketValue.map(DisplayFormatter.currency) ?? "--")
-                statPill(title: "累计浮盈", value: totalPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (totalPnL ?? 0).trendColor)
-                statPill(title: "今日变化", value: dailyPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (dailyPnL ?? 0).trendColor)
+                statPill(title: "持有份额", value: DisplayFormatter.price(holding.shares))
+                statPill(title: "单位成本", value: DisplayFormatter.price(holding.costPerUnit))
+                statPill(title: "持仓成本", value: DisplayFormatter.currency(totalCost))
+                statPill(title: "持仓市值", value: marketValue.map(DisplayFormatter.currency) ?? "--")
+                statPill(title: "累计收益", value: totalPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (totalPnL ?? 0).trendColor)
+                statPill(title: "今日收益", value: dailyPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (dailyPnL ?? 0).trendColor)
             }
 
             if !holding.notes.isEmpty {
