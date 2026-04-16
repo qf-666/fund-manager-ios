@@ -1,0 +1,18 @@
+# Xcode / Swift
+.DS_Store
+build/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+Packages/
+
+# Local runtime
+runtime/
+
+# Planning scratch files
+/task_plan.md
+/findings.md
+/progress.md
