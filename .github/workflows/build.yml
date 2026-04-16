@@ -29,7 +29,10 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build app for iOS Simulator
+      - name: Check iOS 16 compatibility
+        run: python3 scripts/check_ios16_compat.py
+
+      - name: Build app for iOS
         run: |
           xcodebuild \
             -project ZhihuFunds.xcodeproj \

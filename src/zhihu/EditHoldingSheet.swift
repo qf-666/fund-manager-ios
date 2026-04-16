@@ -46,12 +46,12 @@ struct EditHoldingSheet: View {
             }
             .navigationTitle("编辑持仓")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         save()
                     }

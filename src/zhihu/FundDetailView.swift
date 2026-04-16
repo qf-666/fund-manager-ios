@@ -35,7 +35,7 @@ struct FundDetailView: View {
                 .navigationTitle(holding.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .navigationBarTrailing) {
                         Button("编辑") {
                             editingHolding = holding
                         }
@@ -50,7 +50,7 @@ struct FundDetailView: View {
                     }
                 }
             } else {
-                ContentUnavailableView("基金不存在", systemImage: "exclamationmark.triangle")
+                EmptyStateView("基金不存在", systemImage: "exclamationmark.triangle")
             }
         }
     }
@@ -128,7 +128,7 @@ struct FundDetailView: View {
                 ProgressView("加载曲线中…")
                     .frame(maxWidth: .infinity, minHeight: 220)
             } else if series.isEmpty {
-                ContentUnavailableView(
+                EmptyStateView(
                     "暂无净值数据",
                     systemImage: "chart.line.uptrend.xyaxis",
                     description: Text("可以稍后刷新，或尝试切换其他基金。")

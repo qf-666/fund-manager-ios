@@ -59,7 +59,7 @@ struct HomeView: View {
 
             Section {
                 if viewModel.sortedHoldings.isEmpty {
-                    ContentUnavailableView(
+                    EmptyStateView(
                         "还没有自选基金",
                         systemImage: "star",
                         description: Text("去“搜索”页添加基金，或者在设置中恢复默认示例组合。")
@@ -108,7 +108,7 @@ struct HomeView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("基金工作台")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     Task { await viewModel.refreshAll(force: true) }
                 } label: {

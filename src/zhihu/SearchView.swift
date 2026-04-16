@@ -29,7 +29,7 @@ struct SearchView: View {
 
             Section("搜索结果") {
                 if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    ContentUnavailableView(
+                    EmptyStateView(
                         "输入关键词后开始搜索",
                         systemImage: "magnifyingglass",
                         description: Text("支持基金名称、代码、拼音简称。")
