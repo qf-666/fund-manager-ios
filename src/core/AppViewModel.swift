@@ -38,7 +38,7 @@ final class AppViewModel: ObservableObject {
         }
         let totalPnL = totalMarketValue - totalCost
         let dailyPnL = positions.reduce(0) { partialResult, holding in
-            partialResult + (dailyPnL(for: holding) ?? 0)
+            partialResult + (self.dailyPnL(for: holding) ?? 0)
         }
         return PortfolioSummary(
             totalCost: totalCost,
