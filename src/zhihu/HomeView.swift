@@ -11,7 +11,7 @@ struct HomeView: View {
             Section {
                 LazyVGrid(columns: gridColumns, spacing: 12) {
                     MetricCard(title: "持仓成本", value: DisplayFormatter.currency(viewModel.summary.totalCost), subtitle: "按单位成本 × 持有份额汇总")
-                    MetricCard(title: "持仓市值", value: DisplayFormatter.currency(viewModel.summary.totalMarketValue), subtitle: "按最新净值估算")
+                    MetricCard(title: "持仓市值", value: DisplayFormatter.currency(viewModel.summary.totalMarketValue), subtitle: "按已确认净值计算")
                     MetricCard(
                         title: "累计收益",
                         value: DisplayFormatter.signedCurrency(viewModel.summary.totalPnL),
@@ -230,6 +230,12 @@ private struct FundRow: View {
                     Text("今日收益 \(DisplayFormatter.signedCurrency(dailyPnL))")
                         .font(.caption2)
                         .foregroundStyle(dailyPnL.trendColor)
+                }
+
+                if let quote {
+                    Text(DisplayFormatter.quoteTimestamp(quote.displayTimestamp, preferTime: !quote.prefersOfficialSnapshot))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

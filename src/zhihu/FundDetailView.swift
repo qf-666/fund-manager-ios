@@ -67,8 +67,8 @@ struct FundDetailView: View {
                         .font(.title3.weight(.semibold))
                 }
                 Spacer()
-                if let updatedAt = quote?.estimatedTime ?? quote?.reportDate {
-                    Text(DisplayFormatter.dayLabel(updatedAt))
+                if let quote {
+                    Text(DisplayFormatter.quoteTimestamp(quote.displayTimestamp, preferTime: !quote.prefersOfficialSnapshot))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

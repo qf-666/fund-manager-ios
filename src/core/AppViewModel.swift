@@ -205,7 +205,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func marketValue(for holding: StoredHolding) -> Double? {
-        guard holding.hasPosition, let price = quote(for: holding.code)?.displayPrice else {
+        guard holding.hasPosition, let price = quote(for: holding.code)?.marketValuePrice else {
             return nil
         }
         return price * holding.shares
@@ -220,10 +220,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func dailyPnL(for holding: StoredHolding) -> Double? {
-        guard let marketValue = marketValue(for: holding), let changePercent = quote(for: holding.code)?.displayChangePercent else {
+        guard let dailyChangePerUnit = quote(for: holding.code)?.dailyPnLPerUnit else {
             return nil
         }
-        return marketValue * changePercent / 100
+        return dailyChangePerUnit * holding.shares
     }
 
     func returnPercent(for holding: StoredHolding) -> Double? {

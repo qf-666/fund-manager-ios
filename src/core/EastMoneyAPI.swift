@@ -73,7 +73,10 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             throw EastMoneyAPIError.invalidPayload("基金快照缺少 Datas")
         }
 
-        return items.compactMap { item in
+        let expansion = root["Expansion"] as? [String: Any]
+        let sharedEstimatedTime = string(expansion?["GZTIME"])
+
+        let snapshots = items.compactMap { item in
             guard let code = string(item["FCODE"]), let name = string(item["SHORTNAME"]) else {
                 return nil
             }
@@ -85,9 +88,12 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
                 estimatedChangePercent: double(item["GSZZL"]),
                 dailyNavChangePercent: double(item["NAVCHGRT"]),
                 reportDate: string(item["PDATE"]),
-                estimatedTime: string(item["GZTIME"]) ?? string(item["HQDATE"])
+                estimatedTime: string(item["GZTIME"]) ?? string(item["HQDATE"]) ?? sharedEstimatedTime
             )
         }
+
+        let fallbackEstimates = await fetchFallbackEstimates(for: snapshots)
+        return snapshots.map { $0.merged(with: fallbackEstimates[$0.code]) }
     }
 
     func fetchIndices() async throws -> [MarketIndexItem] {
@@ -166,17 +172,86 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         .sorted { $0.date < $1.date }
     }
 
+    private func fetchFallbackEstimates(for snapshots: [RemoteFundSnapshot]) async -> [String: FundEstimateSnapshot] {
+        let missingEstimateCodes = snapshots
+            .filter { $0.estimatedNav == nil || $0.estimatedChangePercent == nil || $0.estimatedTime == nil }
+            .map(\.code)
+
+        guard !missingEstimateCodes.isEmpty else { return [:] }
+
+        var estimates: [String: FundEstimateSnapshot] = [:]
+        for code in missingEstimateCodes {
+            if let estimate = try? await fetchEstimate(code: code) {
+                estimates[estimate.code] = estimate
+            }
+        }
+        return estimates
+    }
+
+    private func fetchEstimate(code: String) async throws -> FundEstimateSnapshot? {
+        let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+        let rawURL = "https://fundgz.1234567.com.cn/js/\(code).js?rt=\(timestamp)"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
+
+        let body = try await requestText(url)
+        guard
+            let start = body.firstIndex(of: "("),
+            let end = body.lastIndex(of: ")"),
+            start < end
+        else {
+            return nil
+        }
+
+        let payload = String(body[body.index(after: start)..<end])
+        guard
+            let data = payload.data(using: .utf8),
+            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let parsedCode = string(object["fundcode"])
+        else {
+            return nil
+        }
+
+        return FundEstimateSnapshot(
+            code: parsedCode,
+            nav: double(object["dwjz"]),
+            estimatedNav: double(object["gsz"]),
+            estimatedChangePercent: double(object["gszzl"]),
+            reportDate: string(object["jzrq"]),
+            estimatedTime: string(object["gztime"])
+        )
+    }
+
     private func request(_ url: URL) async throws -> Any {
+        let (data, _) = try await performRequest(url)
+        return try JSONSerialization.jsonObject(with: data)
+    }
+
+    private func requestText(_ url: URL) async throws -> String {
+        let (data, _) = try await performRequest(url)
+        if let text = String(data: data, encoding: .utf8) {
+            return text
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private func performRequest(_ url: URL) async throws -> (Data, HTTPURLResponse) {
+        let request = makeRequest(url)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            throw EastMoneyAPIError.invalidResponse
+        }
+        return (data, http)
+    }
+
+    private func makeRequest(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
             forHTTPHeaderField: "User-Agent"
         )
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
-            throw EastMoneyAPIError.invalidResponse
-        }
-        return try JSONSerialization.jsonObject(with: data)
+        return request
     }
 
     private func string(_ value: Any?) -> String? {

@@ -65,13 +65,76 @@ struct RemoteFundSnapshot: Identifiable, Hashable {
     let reportDate: String?
     let estimatedTime: String?
 
+    private var reportDay: String? {
+        reportDate.map { String($0.prefix(10)) }
+    }
+
+    private var estimatedDay: String? {
+        estimatedTime.map { String($0.prefix(10)) }
+    }
+
+    var prefersOfficialSnapshot: Bool {
+        if let reportDay, let estimatedDay {
+            return reportDay == estimatedDay
+        }
+        return estimatedNav == nil && estimatedChangePercent == nil
+    }
+
     var displayPrice: Double? {
-        estimatedNav ?? nav
+        if prefersOfficialSnapshot {
+            return nav ?? estimatedNav
+        }
+        return estimatedNav ?? nav
     }
 
     var displayChangePercent: Double? {
-        estimatedChangePercent ?? dailyNavChangePercent
+        if prefersOfficialSnapshot {
+            return dailyNavChangePercent ?? estimatedChangePercent
+        }
+        return estimatedChangePercent ?? dailyNavChangePercent
     }
+
+    var marketValuePrice: Double? {
+        nav ?? displayPrice
+    }
+
+    var dailyPnLPerUnit: Double? {
+        if prefersOfficialSnapshot, let nav, let changePercent = dailyNavChangePercent {
+            let ratio = 1 + changePercent / 100
+            guard abs(ratio) > .ulpOfOne else { return nil }
+            return nav - nav / ratio
+        }
+
+        guard let estimatedNav, let nav else { return nil }
+        return estimatedNav - nav
+    }
+
+    var displayTimestamp: String? {
+        prefersOfficialSnapshot ? (reportDate ?? estimatedTime) : (estimatedTime ?? reportDate)
+    }
+
+    func merged(with estimate: FundEstimateSnapshot?) -> RemoteFundSnapshot {
+        guard let estimate, estimate.code == code else { return self }
+        return RemoteFundSnapshot(
+            code: code,
+            name: name,
+            nav: nav ?? estimate.nav,
+            estimatedNav: estimatedNav ?? estimate.estimatedNav,
+            estimatedChangePercent: estimatedChangePercent ?? estimate.estimatedChangePercent,
+            dailyNavChangePercent: dailyNavChangePercent,
+            reportDate: reportDate ?? estimate.reportDate,
+            estimatedTime: estimatedTime ?? estimate.estimatedTime
+        )
+    }
+}
+
+struct FundEstimateSnapshot: Hashable {
+    let code: String
+    let nav: Double?
+    let estimatedNav: Double?
+    let estimatedChangePercent: Double?
+    let reportDate: String?
+    let estimatedTime: String?
 }
 
 struct FundProfile: Hashable {
@@ -280,6 +343,14 @@ enum DisplayFormatter {
 
     static func dayLabel(_ rawValue: String?) -> String {
         guard let date = date(rawValue) else { return rawValue ?? "--" }
+        return date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
+    }
+
+    static func quoteTimestamp(_ rawValue: String?, preferTime: Bool) -> String {
+        guard let date = date(rawValue) else { return rawValue ?? "--" }
+        if preferTime, rawValue?.contains(":") == true {
+            return date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+        }
         return date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
     }
 }
