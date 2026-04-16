@@ -76,7 +76,7 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         let expansion = root["Expansion"] as? [String: Any]
         let sharedEstimatedTime = string(expansion?["GZTIME"])
 
-        let snapshots = items.compactMap { item in
+        let snapshots: [RemoteFundSnapshot] = items.compactMap { item -> RemoteFundSnapshot? in
             guard let code = string(item["FCODE"]), let name = string(item["SHORTNAME"]) else {
                 return nil
             }
