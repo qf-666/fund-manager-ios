@@ -150,6 +150,34 @@ struct AppState: Codable {
     var deviceId: String
     var holdings: [StoredHolding]
     var theme: AppTheme
+    var autoRefreshIntervalSeconds: Int
+
+    enum CodingKeys: String, CodingKey {
+        case deviceId
+        case holdings
+        case theme
+        case autoRefreshIntervalSeconds
+    }
+
+    init(
+        deviceId: String,
+        holdings: [StoredHolding],
+        theme: AppTheme,
+        autoRefreshIntervalSeconds: Int = 10
+    ) {
+        self.deviceId = deviceId
+        self.holdings = holdings
+        self.theme = theme
+        self.autoRefreshIntervalSeconds = autoRefreshIntervalSeconds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        deviceId = try container.decode(String.self, forKey: .deviceId)
+        holdings = try container.decode([StoredHolding].self, forKey: .holdings)
+        theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
+        autoRefreshIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .autoRefreshIntervalSeconds) ?? 10
+    }
 
     static func seeded(deviceId: String = UUID().uuidString) -> AppState {
         AppState(
@@ -159,7 +187,8 @@ struct AppState: Codable {
                 StoredHolding(code: "001632", name: "天弘中证食品饮料ETF联接C", shares: 200, costPerUnit: 1.95),
                 StoredHolding(code: "161725", name: "招商中证白酒指数(LOF)A", shares: 80, costPerUnit: 0.68)
             ],
-            theme: .system
+            theme: .system,
+            autoRefreshIntervalSeconds: 10
         )
     }
 }

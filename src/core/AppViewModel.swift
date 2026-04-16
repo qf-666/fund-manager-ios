@@ -11,12 +11,11 @@ final class AppViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var lastUpdated: Date?
 
-    let autoRefreshInterval: TimeInterval = 10
-
     private let api: EastMoneyAPIProtocol
     private let store: PersistenceStore
     private var hasBootstrapped = false
     private var autoRefreshTask: Task<Void, Never>?
+    private var autoRefreshAllowed = false
 
     init(api: EastMoneyAPIProtocol = EastMoneyAPI(), store: PersistenceStore = .shared) {
         self.api = api
@@ -55,6 +54,20 @@ final class AppViewModel: ObservableObject {
         store.fileURL.path
     }
 
+    var autoRefreshInterval: TimeInterval {
+        guard state.autoRefreshIntervalSeconds > 0 else { return 0 }
+        return TimeInterval(state.autoRefreshIntervalSeconds)
+    }
+
+    var autoRefreshDescription: String {
+        let seconds = state.autoRefreshIntervalSeconds
+        guard seconds > 0 else { return "已关闭" }
+        if seconds % 60 == 0 {
+            return "\(seconds / 60) 分钟"
+        }
+        return "\(seconds) 秒"
+    }
+
     func bootstrap() async {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
@@ -62,7 +75,8 @@ final class AppViewModel: ObservableObject {
     }
 
     func startAutoRefresh() {
-        guard autoRefreshTask == nil else { return }
+        autoRefreshAllowed = true
+        guard autoRefreshTask == nil, autoRefreshInterval > 0 else { return }
 
         autoRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -76,8 +90,21 @@ final class AppViewModel: ObservableObject {
     }
 
     func stopAutoRefresh() {
+        autoRefreshAllowed = false
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
+    }
+
+    func setAutoRefreshInterval(_ seconds: Int) {
+        let clamped = max(0, min(seconds, 3600))
+        state.autoRefreshIntervalSeconds = clamped
+        persist()
+
+        if autoRefreshAllowed {
+            autoRefreshTask?.cancel()
+            autoRefreshTask = nil
+            startAutoRefresh()
+        }
     }
 
     func refreshAll(force: Bool = false) async {
@@ -158,7 +185,13 @@ final class AppViewModel: ObservableObject {
     }
 
     func resetPortfolio() {
-        state = AppState.seeded(deviceId: state.deviceId)
+        let seeded = AppState.seeded(deviceId: state.deviceId)
+        state = AppState(
+            deviceId: seeded.deviceId,
+            holdings: seeded.holdings,
+            theme: state.theme,
+            autoRefreshIntervalSeconds: state.autoRefreshIntervalSeconds
+        )
         persist()
         Task { await refreshAll(force: true) }
     }
