@@ -18,9 +18,12 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: src/core
-      - path: src/zhihu
+      - src/core
+      - src/zhihu
+    dependencies:
+      - sdk: Charts.framework
     info:
+      path: src/zhihu/Info.plist
       properties:
         CFBundleDisplayName: ZhihuFunds
         UILaunchScreen: {}
