@@ -303,7 +303,7 @@ final class AppViewModel: ObservableObject {
         guard supportsAlternateIcons else { return }
         guard UIApplication.shared.alternateIconName != icon.alternateIconName else { return }
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             UIApplication.shared.setAlternateIconName(icon.alternateIconName) { error in
                 if let error {
                     continuation.resume(throwing: error)
