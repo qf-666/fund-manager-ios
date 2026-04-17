@@ -1,45 +1,41 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="140" y1="108" x2="896" y2="924" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#121826"/>
-      <stop offset="0.48" stop-color="#2A3E72"/>
-      <stop offset="1" stop-color="#79A9FF"/>
+    <linearGradient id="bg" x1="144" y1="84" x2="860" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2E395E"/>
+      <stop offset="0.52" stop-color="#556EA8"/>
+      <stop offset="1" stop-color="#7193F2"/>
     </linearGradient>
-    <linearGradient id="miniBar" x1="0" y1="0" x2="0" y2="1">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#C1DFFF"/>
+    <linearGradient id="walletFront" x1="502" y1="328" x2="502" y2="626" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EFF4FF" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#879DC7" stop-opacity="0.68"/>
     </linearGradient>
-    <radialGradient id="glowTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(782 186) rotate(131.482) scale(362.768)">
-      <stop stop-color="#FFFFFF" stop-opacity="0.92"/>
+    <linearGradient id="walletBack" x1="512" y1="248" x2="512" y2="494" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DDE7FA" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#768AB6" stop-opacity="0.62"/>
+    </linearGradient>
+    <radialGradient id="glowTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(814 168) rotate(136) scale(274)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.94"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glowBottom" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(244 794) rotate(-33.8338) scale(348.927)">
-      <stop stop-color="#6294FF" stop-opacity="0.72"/>
+    <radialGradient id="glowBottom" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(144 850) rotate(-18) scale(276)">
+      <stop stop-color="#D8E4FF" stop-opacity="0.88"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
-  <circle cx="782" cy="186" r="184" fill="url(#glowTop)"/>
-  <circle cx="244" cy="794" r="188" fill="url(#glowBottom)"/>
-  <circle cx="202" cy="282" r="82" fill="#FFFFFF" fill-opacity="0.12"/>
-  <rect x="84" y="84" width="856" height="856" rx="196" fill="#FFFFFF" fill-opacity="0.08"/>
-  <rect x="106" y="106" width="812" height="812" rx="174" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
-  <g transform="translate(0 -6) rotate(-8 512 382)">
-    <rect x="306" y="232" width="414" height="264" rx="92" fill="#FFFFFF" fill-opacity="0.18"/>
-    <rect x="306" y="232" width="414" height="264" rx="92" fill="#FFFFFF" fill-opacity="0.48"/>
-    <rect x="306.5" y="232.5" width="413" height="263" rx="91.5" stroke="#FFFFFF" stroke-opacity="0.36"/>
-    <rect x="364" y="292" width="126" height="26" rx="13" fill="#FFFFFF" fill-opacity="0.58"/>
-    <rect x="364" y="384" width="38" height="42" rx="19" fill="url(#miniBar)"/>
-    <rect x="414" y="360" width="38" height="66" rx="19" fill="url(#miniBar)"/>
-    <rect x="464" y="330" width="38" height="96" rx="19" fill="url(#miniBar)"/>
-    <rect x="514" y="346" width="38" height="80" rx="19" fill="url(#miniBar)"/>
-    <rect x="564" y="314" width="38" height="112" rx="19" fill="url(#miniBar)"/>
-  </g>
-  <rect x="240" y="520" width="544" height="248" rx="112" fill="#FFFFFF" fill-opacity="0.14"/>
-  <rect x="240" y="520" width="544" height="248" rx="112" fill="#FFFFFF" fill-opacity="0.30"/>
-  <rect x="240.5" y="520.5" width="543" height="247" rx="111.5" stroke="#FFFFFF" stroke-opacity="0.34"/>
-  <rect x="322" y="590" width="218" height="22" rx="11" fill="#FFFFFF" fill-opacity="0.22"/>
-  <circle cx="682" cy="640" r="34" fill="#FFFFFF" fill-opacity="0.28"/>
-  <path d="M240 606H784" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
-  <path d="M168 764C280 706 405 694 520 710C634 726 729 774 839 838" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="28" stroke-linecap="round"/>
+  <ellipse cx="814" cy="168" rx="202" ry="180" fill="url(#glowTop)"/>
+  <ellipse cx="144" cy="850" rx="190" ry="172" fill="url(#glowBottom)"/>
+  <ellipse cx="142" cy="198" rx="98" ry="98" fill="#FFFFFF" fill-opacity="0.22"/>
+  <rect x="112" y="88" width="800" height="824" rx="188" fill="#FFFFFF" fill-opacity="0.11"/>
+  <rect x="134" y="110" width="756" height="780" rx="168" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="2"/>
+  <path d="M228 182C304 94 498 70 700 94C796 104 846 136 878 182" stroke="#FFFFFF" stroke-opacity="0.26" stroke-width="18" stroke-linecap="round"/>
+  <rect x="318" y="248" width="388" height="246" rx="102" fill="url(#walletBack)"/>
+  <rect x="318.5" y="248.5" width="387" height="245" rx="101.5" stroke="#FFFFFF" stroke-opacity="0.36"/>
+  <rect x="356" y="300" width="232" height="30" rx="15" fill="#FFFFFF" fill-opacity="0.26"/>
+  <rect x="270" y="328" width="464" height="298" rx="120" fill="url(#walletFront)"/>
+  <rect x="270.5" y="328.5" width="463" height="297" rx="119.5" stroke="#FFFFFF" stroke-opacity="0.36"/>
+  <rect x="328" y="384" width="224" height="28" rx="14" fill="#BFD6FF" fill-opacity="0.34"/>
+  <path d="M270 450H734" stroke="#516A9A" stroke-opacity="0.54" stroke-width="3"/>
+  <circle cx="645" cy="425" r="33" fill="#FFFFFF" fill-opacity="0.36"/>
+  <path d="M220 810C312 718 468 692 610 712C700 724 778 762 844 820" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="26" stroke-linecap="round"/>
 </svg>

@@ -14,9 +14,6 @@ settings:
     SUPPORTS_MACCATALYST: NO
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
-    ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES:
-      - AppIconDeep
-      - AppIconEmerald
 targets:
   ZhihuFunds:
     type: application
@@ -31,6 +28,51 @@ targets:
       path: src/zhihu/Info.plist
       properties:
         CFBundleDisplayName: 基金助手
+        CFBundleIcons:
+          CFBundlePrimaryIcon:
+            CFBundleIconFiles:
+              - AppIcon60x60
+            CFBundleIconName: AppIcon
+          CFBundleAlternateIcons:
+            AppIconDeep:
+              CFBundleIconFiles:
+                - AppIconDeep20
+                - AppIconDeep29
+                - AppIconDeep40
+                - AppIconDeep60
+                - AppIconDeep76
+                - AppIconDeep83p5
+            AppIconEmerald:
+              CFBundleIconFiles:
+                - AppIconEmerald20
+                - AppIconEmerald29
+                - AppIconEmerald40
+                - AppIconEmerald60
+                - AppIconEmerald76
+                - AppIconEmerald83p5
+        CFBundleIcons~ipad:
+          CFBundlePrimaryIcon:
+            CFBundleIconFiles:
+              - AppIcon60x60
+              - AppIcon76x76
+            CFBundleIconName: AppIcon
+          CFBundleAlternateIcons:
+            AppIconDeep:
+              CFBundleIconFiles:
+                - AppIconDeep20
+                - AppIconDeep29
+                - AppIconDeep40
+                - AppIconDeep60
+                - AppIconDeep76
+                - AppIconDeep83p5
+            AppIconEmerald:
+              CFBundleIconFiles:
+                - AppIconEmerald20
+                - AppIconEmerald29
+                - AppIconEmerald40
+                - AppIconEmerald60
+                - AppIconEmerald76
+                - AppIconEmerald83p5
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

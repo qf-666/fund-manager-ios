@@ -201,7 +201,7 @@ final class AppViewModel: ObservableObject {
         } catch {
             state.appIcon = previousIcon
             persist()
-            appIconErrorMessage = "切换图标失败：\(error.localizedDescription)"
+            appIconErrorMessage = formatAppIconError(error, action: "切换图标")
         }
     }
 
@@ -213,7 +213,7 @@ final class AppViewModel: ObservableObject {
             try await applyAppIcon(state.appIcon)
             appIconErrorMessage = nil
         } catch {
-            appIconErrorMessage = "同步图标失败：\(error.localizedDescription)"
+            appIconErrorMessage = formatAppIconError(error, action: "同步图标")
         }
     }
 
@@ -297,6 +297,17 @@ final class AppViewModel: ObservableObject {
 
     private func present(_ error: Error) {
         errorMessage = error.localizedDescription
+    }
+
+    private func formatAppIconError(_ error: Error, action: String) -> String {
+        let nsError = error as NSError
+        let suffix = "\(nsError.domain) \(nsError.code)"
+
+        if nsError.code == -54 {
+            return "\(action)失败：\(nsError.localizedDescription)（\(suffix)），通常是安装包缺少可切换图标资源。"
+        }
+
+        return "\(action)失败：\(nsError.localizedDescription)（\(suffix)）"
     }
 
     private func applyAppIcon(_ icon: AppIconOption) async throws {

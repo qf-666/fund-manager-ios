@@ -26,10 +26,11 @@ def main() -> int:
 
     project_tokens = [
         "ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon",
-        "ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES:",
-        "- AppIconDeep",
-        "- AppIconEmerald",
         "CFBundleDisplayName: 基金助手",
+        "CFBundleIcons:",
+        "CFBundleIcons~ipad:",
+        "AppIconDeep20",
+        "AppIconEmerald20",
     ]
     for token in project_tokens:
         if token not in project:
@@ -53,6 +54,7 @@ def main() -> int:
         "func setAppIcon(_ icon: AppIconOption)",
         "func syncAppIcon()",
         "UIApplication.shared.setAlternateIconName",
+        "formatAppIconError",
     ]
     for token in view_model_tokens:
         if token not in view_model:
@@ -79,11 +81,13 @@ def main() -> int:
         "docs/design/icons/wallet-ios26-emerald.svg",
         "src/zhihu/Assets.xcassets/Contents.json",
         "src/zhihu/Assets.xcassets/AppIcon.appiconset/Contents.json",
-        "src/zhihu/Assets.xcassets/AppIconDeep.appiconset/Contents.json",
-        "src/zhihu/Assets.xcassets/AppIconEmerald.appiconset/Contents.json",
         "src/zhihu/Assets.xcassets/IconPreviewIce.imageset/Contents.json",
         "src/zhihu/Assets.xcassets/IconPreviewDeep.imageset/Contents.json",
         "src/zhihu/Assets.xcassets/IconPreviewEmerald.imageset/Contents.json",
+        "src/zhihu/AlternateIcons/AppIconDeep/AppIconDeep60@2x.png",
+        "src/zhihu/AlternateIcons/AppIconDeep/AppIconDeep76@2x.png",
+        "src/zhihu/AlternateIcons/AppIconEmerald/AppIconEmerald60@2x.png",
+        "src/zhihu/AlternateIcons/AppIconEmerald/AppIconEmerald76@2x.png",
     ]
     for path in required_files:
         if not exists(path):

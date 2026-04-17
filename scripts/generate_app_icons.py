@@ -1,284 +1,367 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
-import math
+import shutil
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = ROOT / "docs" / "design" / "icons"
 ASSET_DIR = ROOT / "src" / "zhihu" / "Assets.xcassets"
+ALT_ICON_DIR = ROOT / "src" / "zhihu" / "AlternateIcons"
 
 SIZE = 1024
 
+APP_ICON_SLOTS = [
+    {"idiom": "iphone", "size": "20x20", "scale": "2x", "pixels": 40, "tag": "iphone-20@2x"},
+    {"idiom": "iphone", "size": "20x20", "scale": "3x", "pixels": 60, "tag": "iphone-20@3x"},
+    {"idiom": "iphone", "size": "29x29", "scale": "2x", "pixels": 58, "tag": "iphone-29@2x"},
+    {"idiom": "iphone", "size": "29x29", "scale": "3x", "pixels": 87, "tag": "iphone-29@3x"},
+    {"idiom": "iphone", "size": "40x40", "scale": "2x", "pixels": 80, "tag": "iphone-40@2x"},
+    {"idiom": "iphone", "size": "40x40", "scale": "3x", "pixels": 120, "tag": "iphone-40@3x"},
+    {"idiom": "iphone", "size": "60x60", "scale": "2x", "pixels": 120, "tag": "iphone-60@2x"},
+    {"idiom": "iphone", "size": "60x60", "scale": "3x", "pixels": 180, "tag": "iphone-60@3x"},
+    {"idiom": "ipad", "size": "20x20", "scale": "1x", "pixels": 20, "tag": "ipad-20@1x"},
+    {"idiom": "ipad", "size": "20x20", "scale": "2x", "pixels": 40, "tag": "ipad-20@2x"},
+    {"idiom": "ipad", "size": "29x29", "scale": "1x", "pixels": 29, "tag": "ipad-29@1x"},
+    {"idiom": "ipad", "size": "29x29", "scale": "2x", "pixels": 58, "tag": "ipad-29@2x"},
+    {"idiom": "ipad", "size": "40x40", "scale": "1x", "pixels": 40, "tag": "ipad-40@1x"},
+    {"idiom": "ipad", "size": "40x40", "scale": "2x", "pixels": 80, "tag": "ipad-40@2x"},
+    {"idiom": "ipad", "size": "76x76", "scale": "1x", "pixels": 76, "tag": "ipad-76@1x"},
+    {"idiom": "ipad", "size": "76x76", "scale": "2x", "pixels": 152, "tag": "ipad-76@2x"},
+    {"idiom": "ipad", "size": "83.5x83.5", "scale": "2x", "pixels": 167, "tag": "ipad-83p5@2x"},
+    {"idiom": "ios-marketing", "size": "1024x1024", "scale": "1x", "pixels": 1024, "tag": "marketing-1024"},
+]
+
+ALT_ICON_RESOURCE_SLOTS = [
+    {"base": "20", "scale": "1x", "pixels": 20},
+    {"base": "20", "scale": "2x", "pixels": 40},
+    {"base": "20", "scale": "3x", "pixels": 60},
+    {"base": "29", "scale": "1x", "pixels": 29},
+    {"base": "29", "scale": "2x", "pixels": 58},
+    {"base": "29", "scale": "3x", "pixels": 87},
+    {"base": "40", "scale": "1x", "pixels": 40},
+    {"base": "40", "scale": "2x", "pixels": 80},
+    {"base": "40", "scale": "3x", "pixels": 120},
+    {"base": "60", "scale": "2x", "pixels": 120},
+    {"base": "60", "scale": "3x", "pixels": 180},
+    {"base": "76", "scale": "1x", "pixels": 76},
+    {"base": "76", "scale": "2x", "pixels": 152},
+    {"base": "83p5", "scale": "2x", "pixels": 167},
+]
+
 ICONS: dict[str, dict[str, object]] = {
     "ice": {
-        "title": "冰川钱包",
-        "app_icon_set": "AppIcon",
+        "app_icon_name": "AppIcon",
+        "alternate_icon_name": None,
         "preview_set": "IconPreviewIce",
-        "base_file": "wallet-ios26-ice",
-        "bg": ["#E8F4FF", "#94C6FF", "#CDD7FF"],
-        "glow": "#C4E1FF",
-        "shadow": (17, 30, 51),
-        "bar": ["#FFFFFF", "#DAECFF"],
+        "doc_file": "wallet-ios26-ice",
+        "bg": ["#E9F3FF", "#B7D3FF", "#CCD9FF"],
+        "wallet": ["#F7FBFF", "#BFD4F6", "#6F8DC7"],
+        "wallet_back": ["#F4FBFF", "#C6D9FA", "#8AA6D8"],
+        "glow": "#DDEBFF",
+        "accent": "#A9C7F8",
+        "shadow": (120, 150, 206),
     },
     "deep": {
-        "title": "深空资产卡",
-        "app_icon_set": "AppIconDeep",
+        "app_icon_name": "AppIconDeep",
+        "alternate_icon_name": "AppIconDeep",
         "preview_set": "IconPreviewDeep",
-        "base_file": "wallet-ios26-deep",
-        "bg": ["#121826", "#2A3E72", "#79A9FF"],
-        "glow": "#6294FF",
-        "shadow": (2, 10, 24),
-        "bar": ["#FFFFFF", "#C1DFFF"],
+        "doc_file": "wallet-ios26-deep",
+        "bg": ["#2E395E", "#556EA8", "#7193F2"],
+        "wallet": ["#EFF4FF", "#879DC7", "#516A9A"],
+        "wallet_back": ["#DDE7FA", "#768AB6", "#445A86"],
+        "glow": "#D8E4FF",
+        "accent": "#BFD6FF",
+        "shadow": (28, 42, 84),
     },
     "emerald": {
-        "title": "翡翠流光",
-        "app_icon_set": "AppIconEmerald",
+        "app_icon_name": "AppIconEmerald",
+        "alternate_icon_name": "AppIconEmerald",
         "preview_set": "IconPreviewEmerald",
-        "base_file": "wallet-ios26-emerald",
-        "bg": ["#D9FFF2", "#84E4CE", "#8DBFFF"],
-        "glow": "#81F1D8",
-        "shadow": (8, 32, 30),
-        "bar": ["#FFFFFF", "#C6FFEE"],
+        "doc_file": "wallet-ios26-emerald",
+        "bg": ["#D6FFF5", "#9AEFDF", "#90CCFF"],
+        "wallet": ["#F5FFFD", "#BEE6E6", "#76B8C2"],
+        "wallet_back": ["#F1FFFB", "#C0ECE6", "#7ABCC9"],
+        "glow": "#DFFFF8",
+        "accent": "#C8FFF3",
+        "shadow": (76, 165, 170),
     },
 }
 
 
 def hex_to_rgb(value: str) -> tuple[int, int, int]:
     value = value.lstrip("#")
-    return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))
-
-
-def rgba(color: tuple[int, int, int], alpha: int) -> tuple[int, int, int, int]:
-    return color + (alpha,)
+    return tuple(int(value[index:index + 2], 16) for index in (0, 2, 4))
 
 
 def mix(left: tuple[int, int, int], right: tuple[int, int, int], ratio: float) -> tuple[int, int, int]:
     return tuple(round(left[index] + (right[index] - left[index]) * ratio) for index in range(3))
 
 
-def multi_stop_gradient(stops: list[tuple[float, tuple[int, int, int]]], height: int) -> Image.Image:
-    image = Image.new("RGBA", (SIZE, height))
+def rgba(color: tuple[int, int, int], alpha: int) -> tuple[int, int, int, int]:
+    return color + (alpha,)
+
+
+def gradient_background(top: tuple[int, int, int], middle: tuple[int, int, int], bottom: tuple[int, int, int]) -> Image.Image:
+    image = Image.new("RGBA", (SIZE, SIZE))
     pixels = image.load()
-    for y in range(height):
-        position = y / max(1, height - 1)
-        for index, (stop, color) in enumerate(stops):
-            if position <= stop:
-                previous_stop, previous_color = stops[max(0, index - 1)]
-                local_range = max(0.0001, stop - previous_stop)
-                local_ratio = 0 if index == 0 else (position - previous_stop) / local_range
-                mixed = mix(previous_color, color, max(0.0, min(1.0, local_ratio)))
-                for x in range(SIZE):
-                    pixels[x, y] = rgba(mixed, 255)
-                break
+    for y in range(SIZE):
+        vertical = y / (SIZE - 1)
+        if vertical <= 0.52:
+            base = mix(top, middle, vertical / 0.52)
+        else:
+            base = mix(middle, bottom, (vertical - 0.52) / 0.48)
+
+        for x in range(SIZE):
+            horizontal = x / (SIZE - 1)
+            drift = (horizontal - 0.5) * 0.12
+            tone = mix(base, bottom, max(0.0, min(1.0, vertical * 0.18 + drift)))
+            pixels[x, y] = rgba(tone, 255)
     return image
 
 
-def add_blurred_circle(layer: Image.Image, bbox: tuple[int, int, int, int], color: tuple[int, int, int], alpha: int, blur: int) -> None:
-    circle = Image.new("RGBA", layer.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(circle)
-    draw.ellipse(bbox, fill=rgba(color, alpha))
-    blurred = circle.filter(ImageFilter.GaussianBlur(blur))
-    layer.alpha_composite(blurred)
+def add_blur_ellipse(layer: Image.Image, box: tuple[int, int, int, int], color: tuple[int, int, int], alpha: int, blur: int) -> None:
+    patch = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(patch)
+    draw.ellipse(box, fill=rgba(color, alpha))
+    layer.alpha_composite(patch.filter(ImageFilter.GaussianBlur(blur)))
 
 
-def rounded_rect_mask(size: tuple[int, int], radius: int) -> Image.Image:
-    mask = Image.new("L", size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.rounded_rectangle((0, 0, size[0], size[1]), radius=radius, fill=255)
-    return mask
+def add_blur_round_rect(layer: Image.Image, box: tuple[int, int, int, int], radius: int, color: tuple[int, int, int], alpha: int, blur: int) -> None:
+    patch = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(patch)
+    draw.rounded_rectangle(box, radius=radius, fill=rgba(color, alpha))
+    layer.alpha_composite(patch.filter(ImageFilter.GaussianBlur(blur)))
 
 
-def draw_bar_gradient(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], top_color: tuple[int, int, int], bottom_color: tuple[int, int, int]) -> None:
+def draw_vertical_gradient_rect(image: Image.Image, box: tuple[int, int, int, int], radius: int, top: tuple[int, int, int], bottom: tuple[int, int, int], alpha_top: int, alpha_bottom: int, stroke_alpha: int) -> None:
     x1, y1, x2, y2 = box
-    height = max(1, y2 - y1)
+    width = x2 - x1
+    height = y2 - y1
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
     for offset in range(height):
         ratio = offset / max(1, height - 1)
-        fill = mix(top_color, bottom_color, ratio)
-        draw.rounded_rectangle((x1, y1 + offset, x2, y1 + offset + 1), radius=max(1, (x2 - x1) // 2), fill=fill)
+        fill = mix(top, bottom, ratio)
+        alpha = round(alpha_top + (alpha_bottom - alpha_top) * ratio)
+        overlay_draw.rounded_rectangle((0, offset, width, offset + 1), radius=radius, fill=rgba(fill, alpha))
+    mask = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, width, height), radius=radius, fill=255)
+    image.paste(overlay, (x1, y1), mask)
+    ImageDraw.Draw(image).rounded_rectangle(box, radius=radius, outline=(255, 255, 255, stroke_alpha), width=2)
 
 
 def render_png(config: dict[str, object]) -> Image.Image:
-    bg_colors = [hex_to_rgb(color) for color in config["bg"]]  # type: ignore[index]
-    glow_color = hex_to_rgb(config["glow"])  # type: ignore[arg-type]
-    shadow_color = config["shadow"]  # type: ignore[assignment]
-    bar_top, bar_bottom = [hex_to_rgb(color) for color in config["bar"]]  # type: ignore[index]
+    bg_top, bg_middle, bg_bottom = [hex_to_rgb(color) for color in config["bg"]]
+    wallet_top, wallet_bottom, wallet_line = [hex_to_rgb(color) for color in config["wallet"]]
+    back_top, back_bottom, _ = [hex_to_rgb(color) for color in config["wallet_back"]]
+    glow = hex_to_rgb(config["glow"])
+    accent = hex_to_rgb(config["accent"])
+    shadow = config["shadow"]
 
-    base = multi_stop_gradient(
-        [(0.0, bg_colors[0]), (0.48, bg_colors[1]), (1.0, bg_colors[2])],
-        SIZE,
-    )
+    image = gradient_background(bg_top, bg_middle, bg_bottom)
 
     glow_layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    add_blurred_circle(glow_layer, (620, 36, 996, 412), (255, 255, 255), 220, 28)
-    add_blurred_circle(glow_layer, (40, 620, 430, 1010), glow_color, 180, 36)
-    add_blurred_circle(glow_layer, (112, 192, 292, 372), (255, 255, 255), 36, 16)
-    base.alpha_composite(glow_layer)
+    add_blur_ellipse(glow_layer, (612, 18, 1016, 378), (255, 255, 255), 230, 24)
+    add_blur_ellipse(glow_layer, (36, 92, 248, 304), (255, 255, 255), 84, 18)
+    add_blur_ellipse(glow_layer, (-24, 694, 286, 1016), glow, 132, 42)
+    add_blur_round_rect(glow_layer, (182, 88, 854, 866), 200, (255, 255, 255), 32, 30)
+    image.alpha_composite(glow_layer)
 
-    frame = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    frame_draw = ImageDraw.Draw(frame)
-    frame_draw.rounded_rectangle((84, 84, 940, 940), radius=196, fill=(255, 255, 255, 18))
-    frame_draw.rounded_rectangle((106, 106, 918, 918), radius=174, outline=(255, 255, 255, 42), width=2)
-    base.alpha_composite(frame)
+    panel = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    panel_draw = ImageDraw.Draw(panel)
+    panel_draw.rounded_rectangle((112, 88, 912, 912), radius=188, fill=(255, 255, 255, 28))
+    panel_draw.rounded_rectangle((134, 110, 890, 890), radius=168, outline=(255, 255, 255, 54), width=2)
+    panel_draw.arc((168, 70, 784, 560), start=200, end=304, fill=(255, 255, 255, 74), width=18)
+    image.alpha_composite(panel)
 
-    icon_shadow = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(icon_shadow)
-    shadow_draw.rounded_rectangle((240, 520, 784, 768), radius=112, fill=shadow_color + (70,))
-    icon_shadow = icon_shadow.filter(ImageFilter.GaussianBlur(34))
-    base.alpha_composite(icon_shadow)
+    shadow_layer = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    add_blur_round_rect(shadow_layer, (316, 296, 728, 568), 110, shadow, 96, 26)
+    add_blur_round_rect(shadow_layer, (292, 360, 748, 640), 116, shadow, 110, 34)
+    image.alpha_composite(shadow_layer)
 
-    card = Image.new("RGBA", (480, 320), (0, 0, 0, 0))
-    card_draw = ImageDraw.Draw(card)
-    card_draw.rounded_rectangle((32, 20, 448, 284), radius=92, fill=(255, 255, 255, 58))
-    card_draw.rounded_rectangle((32, 20, 448, 284), radius=92, fill=(255, 255, 255, 168))
-    card_draw.rounded_rectangle((33, 21, 447, 283), radius=91, outline=(255, 255, 255, 92), width=2)
-    card_draw.rounded_rectangle((90, 80, 218, 108), radius=14, fill=(255, 255, 255, 160))
-    bar_positions = [
-        (90, 176, 128, 218),
-        (140, 152, 178, 218),
-        (190, 122, 228, 218),
-        (240, 138, 278, 218),
-        (290, 106, 328, 218),
-    ]
-    for position in bar_positions:
-        draw_bar_gradient(card_draw, position, bar_top, bar_bottom)
-    card = card.rotate(-8, resample=Image.Resampling.BICUBIC, expand=True)
-    base.alpha_composite(card, (250, 150))
+    draw_vertical_gradient_rect(
+        image,
+        (318, 248, 706, 494),
+        102,
+        back_top,
+        back_bottom,
+        230,
+        150,
+        92,
+    )
+    ImageDraw.Draw(image).rounded_rectangle((356, 300, 588, 330), radius=16, fill=(255, 255, 255, 72))
 
-    wallet = Image.new("RGBA", (640, 340), (0, 0, 0, 0))
-    wallet_draw = ImageDraw.Draw(wallet)
-    wallet_draw.rounded_rectangle((48, 56, 592, 304), radius=112, fill=(255, 255, 255, 34))
-    wallet_draw.rounded_rectangle((48, 56, 592, 304), radius=112, fill=(255, 255, 255, 118))
-    wallet_draw.rounded_rectangle((49, 57, 591, 303), radius=111, outline=(255, 255, 255, 86), width=2)
-    wallet_draw.rounded_rectangle((130, 126, 348, 148), radius=12, fill=(255, 255, 255, 56))
-    wallet_draw.ellipse((474, 122, 542, 190), fill=(255, 255, 255, 70))
-    wallet_draw.line((48, 142, 592, 142), fill=(255, 255, 255, 34), width=2)
-    base.alpha_composite(wallet, (168, 430))
+    draw_vertical_gradient_rect(
+        image,
+        (270, 328, 734, 626),
+        120,
+        wallet_top,
+        wallet_bottom,
+        238,
+        160,
+        102,
+    )
 
-    bottom_curve = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    bottom_draw = ImageDraw.Draw(bottom_curve)
-    bottom_draw.arc((120, 626, 900, 946), start=196, end=343, fill=(255, 255, 255, 42), width=28)
-    base.alpha_composite(bottom_curve)
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((328, 384, 552, 412), radius=14, fill=rgba(accent, 92))
+    draw.line((270, 450, 734, 450), fill=rgba(wallet_line, 118), width=3)
+    draw.ellipse((612, 392, 678, 458), fill=(255, 255, 255, 90))
+    draw.arc((194, 588, 842, 970), start=208, end=338, fill=(255, 255, 255, 54), width=26)
+
+    highlight = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    add_blur_ellipse(highlight, (244, 188, 742, 372), (255, 255, 255), 44, 22)
+    add_blur_ellipse(highlight, (240, 350, 740, 478), (255, 255, 255), 28, 14)
+    image.alpha_composite(highlight)
 
     flattened = Image.new("RGB", (SIZE, SIZE), (255, 255, 255))
-    flattened.paste(base, mask=base.split()[-1])
+    flattened.paste(image, mask=image.split()[-1])
     return flattened
 
 
 def render_svg(config: dict[str, object]) -> str:
-    bg1, bg2, bg3 = config["bg"]  # type: ignore[misc]
-    glow = config["glow"]  # type: ignore[assignment]
-    bar1, bar2 = config["bar"]  # type: ignore[misc]
-    return f"""<svg width=\"1024\" height=\"1024\" viewBox=\"0 0 1024 1024\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">
+    bg1, bg2, bg3 = config["bg"]
+    wallet1, wallet2, wallet_line = config["wallet"]
+    back1, back2, _ = config["wallet_back"]
+    glow = config["glow"]
+    accent = config["accent"]
+    return f'''<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id=\"bg\" x1=\"140\" y1=\"108\" x2=\"896\" y2=\"924\" gradientUnits=\"userSpaceOnUse\">
-      <stop stop-color=\"{bg1}\"/>
-      <stop offset=\"0.48\" stop-color=\"{bg2}\"/>
-      <stop offset=\"1\" stop-color=\"{bg3}\"/>
+    <linearGradient id="bg" x1="144" y1="84" x2="860" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="{bg1}"/>
+      <stop offset="0.52" stop-color="{bg2}"/>
+      <stop offset="1" stop-color="{bg3}"/>
     </linearGradient>
-    <linearGradient id=\"miniBar\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">
-      <stop stop-color=\"{bar1}\"/>
-      <stop offset=\"1\" stop-color=\"{bar2}\"/>
+    <linearGradient id="walletFront" x1="502" y1="328" x2="502" y2="626" gradientUnits="userSpaceOnUse">
+      <stop stop-color="{wallet1}" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="{wallet2}" stop-opacity="0.68"/>
     </linearGradient>
-    <radialGradient id=\"glowTop\" cx=\"0\" cy=\"0\" r=\"1\" gradientUnits=\"userSpaceOnUse\" gradientTransform=\"translate(782 186) rotate(131.482) scale(362.768)\">
-      <stop stop-color=\"#FFFFFF\" stop-opacity=\"0.92\"/>
-      <stop offset=\"1\" stop-color=\"#FFFFFF\" stop-opacity=\"0\"/>
+    <linearGradient id="walletBack" x1="512" y1="248" x2="512" y2="494" gradientUnits="userSpaceOnUse">
+      <stop stop-color="{back1}" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="{back2}" stop-opacity="0.62"/>
+    </linearGradient>
+    <radialGradient id="glowTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(814 168) rotate(136) scale(274)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id=\"glowBottom\" cx=\"0\" cy=\"0\" r=\"1\" gradientUnits=\"userSpaceOnUse\" gradientTransform=\"translate(244 794) rotate(-33.8338) scale(348.927)\">
-      <stop stop-color=\"{glow}\" stop-opacity=\"0.72\"/>
-      <stop offset=\"1\" stop-color=\"#FFFFFF\" stop-opacity=\"0\"/>
+    <radialGradient id="glowBottom" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(144 850) rotate(-18) scale(276)">
+      <stop stop-color="{glow}" stop-opacity="0.88"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <rect width=\"1024\" height=\"1024\" fill=\"url(#bg)\"/>
-  <circle cx=\"782\" cy=\"186\" r=\"184\" fill=\"url(#glowTop)\"/>
-  <circle cx=\"244\" cy=\"794\" r=\"188\" fill=\"url(#glowBottom)\"/>
-  <circle cx=\"202\" cy=\"282\" r=\"82\" fill=\"#FFFFFF\" fill-opacity=\"0.12\"/>
-  <rect x=\"84\" y=\"84\" width=\"856\" height=\"856\" rx=\"196\" fill=\"#FFFFFF\" fill-opacity=\"0.08\"/>
-  <rect x=\"106\" y=\"106\" width=\"812\" height=\"812\" rx=\"174\" stroke=\"#FFFFFF\" stroke-opacity=\"0.16\" stroke-width=\"2\"/>
-  <g transform=\"translate(0 -6) rotate(-8 512 382)\">
-    <rect x=\"306\" y=\"232\" width=\"414\" height=\"264\" rx=\"92\" fill=\"#FFFFFF\" fill-opacity=\"0.18\"/>
-    <rect x=\"306\" y=\"232\" width=\"414\" height=\"264\" rx=\"92\" fill=\"#FFFFFF\" fill-opacity=\"0.48\"/>
-    <rect x=\"306.5\" y=\"232.5\" width=\"413\" height=\"263\" rx=\"91.5\" stroke=\"#FFFFFF\" stroke-opacity=\"0.36\"/>
-    <rect x=\"364\" y=\"292\" width=\"126\" height=\"26\" rx=\"13\" fill=\"#FFFFFF\" fill-opacity=\"0.58\"/>
-    <rect x=\"364\" y=\"384\" width=\"38\" height=\"42\" rx=\"19\" fill=\"url(#miniBar)\"/>
-    <rect x=\"414\" y=\"360\" width=\"38\" height=\"66\" rx=\"19\" fill=\"url(#miniBar)\"/>
-    <rect x=\"464\" y=\"330\" width=\"38\" height=\"96\" rx=\"19\" fill=\"url(#miniBar)\"/>
-    <rect x=\"514\" y=\"346\" width=\"38\" height=\"80\" rx=\"19\" fill=\"url(#miniBar)\"/>
-    <rect x=\"564\" y=\"314\" width=\"38\" height=\"112\" rx=\"19\" fill=\"url(#miniBar)\"/>
-  </g>
-  <rect x=\"240\" y=\"520\" width=\"544\" height=\"248\" rx=\"112\" fill=\"#FFFFFF\" fill-opacity=\"0.14\"/>
-  <rect x=\"240\" y=\"520\" width=\"544\" height=\"248\" rx=\"112\" fill=\"#FFFFFF\" fill-opacity=\"0.30\"/>
-  <rect x=\"240.5\" y=\"520.5\" width=\"543\" height=\"247\" rx=\"111.5\" stroke=\"#FFFFFF\" stroke-opacity=\"0.34\"/>
-  <rect x=\"322\" y=\"590\" width=\"218\" height=\"22\" rx=\"11\" fill=\"#FFFFFF\" fill-opacity=\"0.22\"/>
-  <circle cx=\"682\" cy=\"640\" r=\"34\" fill=\"#FFFFFF\" fill-opacity=\"0.28\"/>
-  <path d=\"M240 606H784\" stroke=\"#FFFFFF\" stroke-opacity=\"0.12\" stroke-width=\"2\"/>
-  <path d=\"M168 764C280 706 405 694 520 710C634 726 729 774 839 838\" stroke=\"#FFFFFF\" stroke-opacity=\"0.18\" stroke-width=\"28\" stroke-linecap=\"round\"/>
-</svg>
-"""
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <ellipse cx="814" cy="168" rx="202" ry="180" fill="url(#glowTop)"/>
+  <ellipse cx="144" cy="850" rx="190" ry="172" fill="url(#glowBottom)"/>
+  <ellipse cx="142" cy="198" rx="98" ry="98" fill="#FFFFFF" fill-opacity="0.22"/>
+  <rect x="112" y="88" width="800" height="824" rx="188" fill="#FFFFFF" fill-opacity="0.11"/>
+  <rect x="134" y="110" width="756" height="780" rx="168" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="2"/>
+  <path d="M228 182C304 94 498 70 700 94C796 104 846 136 878 182" stroke="#FFFFFF" stroke-opacity="0.26" stroke-width="18" stroke-linecap="round"/>
+  <rect x="318" y="248" width="388" height="246" rx="102" fill="url(#walletBack)"/>
+  <rect x="318.5" y="248.5" width="387" height="245" rx="101.5" stroke="#FFFFFF" stroke-opacity="0.36"/>
+  <rect x="356" y="300" width="232" height="30" rx="15" fill="#FFFFFF" fill-opacity="0.26"/>
+  <rect x="270" y="328" width="464" height="298" rx="120" fill="url(#walletFront)"/>
+  <rect x="270.5" y="328.5" width="463" height="297" rx="119.5" stroke="#FFFFFF" stroke-opacity="0.36"/>
+  <rect x="328" y="384" width="224" height="28" rx="14" fill="{accent}" fill-opacity="0.34"/>
+  <path d="M270 450H734" stroke="{wallet_line}" stroke-opacity="0.54" stroke-width="3"/>
+  <circle cx="645" cy="425" r="33" fill="#FFFFFF" fill-opacity="0.36"/>
+  <path d="M220 810C312 718 468 692 610 712C700 724 778 762 844 820" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="26" stroke-linecap="round"/>
+</svg>'''
 
 
 def write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def app_icon_contents(filename: str) -> dict[str, object]:
-    return {
-        "images": [
-            {
-                "filename": filename,
-                "idiom": "universal",
-                "platform": "ios",
-                "size": "1024x1024",
-            }
-        ],
-        "info": {"author": "xcode", "version": 1},
-    }
+def ensure_clean_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def app_icon_contents(entries: list[dict[str, object]]) -> dict[str, object]:
+    return {"images": entries, "info": {"author": "xcode", "version": 1}}
 
 
 def image_set_contents(filename: str) -> dict[str, object]:
     return {
-        "images": [
-            {
-                "filename": filename,
-                "idiom": "universal",
-                "scale": "1x",
-            }
-        ],
+        "images": [{"filename": filename, "idiom": "universal", "scale": "1x"}],
         "info": {"author": "xcode", "version": 1},
     }
+
+
+def resource_filename(prefix: str, base: str, scale: str) -> str:
+    if scale == "1x":
+        return f"{prefix}{base}.png"
+    return f"{prefix}{base}@{scale}.png"
 
 
 def main() -> int:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    ALT_ICON_DIR.mkdir(parents=True, exist_ok=True)
+
+    for folder_name in ["AppIcon.appiconset", "AppIconDeep.appiconset", "AppIconEmerald.appiconset"]:
+        target = ASSET_DIR / folder_name
+        if target.exists():
+            shutil.rmtree(target)
+
+    for folder_name in ["IconPreviewIce.imageset", "IconPreviewDeep.imageset", "IconPreviewEmerald.imageset"]:
+        target = ASSET_DIR / folder_name
+        if target.exists():
+            shutil.rmtree(target)
+
+    for folder_name in ["AppIconDeep", "AppIconEmerald"]:
+        target = ALT_ICON_DIR / folder_name
+        if target.exists():
+            shutil.rmtree(target)
+
     write_json(ASSET_DIR / "Contents.json", {"info": {"author": "xcode", "version": 1}})
 
     generated: list[str] = []
 
-    for config in ICONS.values():
-        svg_name = f"{config['base_file']}.svg"
-        svg_path = DOCS_DIR / svg_name
+    primary_icon_dir = ASSET_DIR / "AppIcon.appiconset"
+    ensure_clean_dir(primary_icon_dir)
+    primary_contents: list[dict[str, object]] = []
+
+    for key, config in ICONS.items():
+        image = render_png(config)
+
+        svg_path = DOCS_DIR / f"{config['doc_file']}.svg"
         svg_path.write_text(render_svg(config), encoding="utf-8")
         generated.append(str(svg_path.relative_to(ROOT)))
 
-        image = render_png(config)
-
-        app_icon_dir = ASSET_DIR / f"{config['app_icon_set']}.appiconset"
-        app_icon_dir.mkdir(parents=True, exist_ok=True)
-        app_icon_name = f"{config['base_file']}-1024.png"
-        image.save(app_icon_dir / app_icon_name)
-        write_json(app_icon_dir / "Contents.json", app_icon_contents(app_icon_name))
-        generated.append(str((app_icon_dir / app_icon_name).relative_to(ROOT)))
-
         preview_dir = ASSET_DIR / f"{config['preview_set']}.imageset"
-        preview_dir.mkdir(parents=True, exist_ok=True)
-        preview_name = f"{config['base_file']}-preview.png"
+        ensure_clean_dir(preview_dir)
+        preview_name = f"{config['doc_file']}-preview.png"
         image.save(preview_dir / preview_name)
         write_json(preview_dir / "Contents.json", image_set_contents(preview_name))
         generated.append(str((preview_dir / preview_name).relative_to(ROOT)))
+
+        if key == "ice":
+            for slot in APP_ICON_SLOTS:
+                filename = f"AppIcon-{slot['tag']}.png"
+                image.resize((slot['pixels'], slot['pixels']), Image.Resampling.LANCZOS).save(primary_icon_dir / filename)
+                generated.append(str((primary_icon_dir / filename).relative_to(ROOT)))
+                primary_contents.append(
+                    {
+                        "filename": filename,
+                        "idiom": slot["idiom"],
+                        "size": slot["size"],
+                        "scale": slot["scale"],
+                    }
+                )
+        else:
+            resource_dir = ALT_ICON_DIR / str(config["alternate_icon_name"])
+            ensure_clean_dir(resource_dir)
+            for slot in ALT_ICON_RESOURCE_SLOTS:
+                filename = resource_filename(str(config["alternate_icon_name"]), slot["base"], slot["scale"])
+                image.resize((slot['pixels'], slot['pixels']), Image.Resampling.LANCZOS).save(resource_dir / filename)
+                generated.append(str((resource_dir / filename).relative_to(ROOT)))
+
+    write_json(primary_icon_dir / "Contents.json", app_icon_contents(primary_contents))
 
     print("Generated app icon assets:")
     for item in generated:
