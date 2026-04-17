@@ -52,9 +52,11 @@ struct FundDetailView: View {
 
         return series.map { point in
             let fundReturn = ((point.unitValue / baseUnit) - 1) * 100
-            let accumulatedReturn = baseAccumulated.flatMap { base in
-                guard let current = point.accumulatedValue, base != 0 else { return nil }
-                return ((current / base) - 1) * 100
+            let accumulatedReturn: Double?
+            if let baseAccumulated, let current = point.accumulatedValue, baseAccumulated != 0 {
+                accumulatedReturn = ((current / baseAccumulated) - 1) * 100
+            } else {
+                accumulatedReturn = nil
             }
             return CumulativeReturnPoint(date: point.date, fundReturn: fundReturn, accumulatedReturn: accumulatedReturn)
         }
@@ -85,7 +87,6 @@ struct FundDetailView: View {
                     await loadInitialData(for: holding.code)
                 }
                 .onChange(of: selectedRange) { _ in
-                    guard let holding else { return }
                     Task { await loadSeries(for: holding.code) }
                 }
                 .sheet(item: $editingHolding) { draft in
