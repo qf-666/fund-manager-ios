@@ -20,7 +20,7 @@ struct ContentView: View {
                 HomeView()
             }
             .tabItem {
-                Label("概览", systemImage: "chart.pie.fill")
+                Label("基金", systemImage: "list.bullet.rectangle")
             }
 
             NavigationStack {

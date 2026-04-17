@@ -6,6 +6,8 @@ protocol EastMoneyAPIProtocol {
     func fetchIndices() async throws -> [MarketIndexItem]
     func fetchProfile(code: String) async throws -> FundProfile
     func fetchNetValueSeries(code: String, range: ChartRange) async throws -> [NAVPoint]
+    func fetchValuationTrend(code: String) async throws -> FundValuationTrend?
+    func fetchPositionSnapshot(code: String) async throws -> FundPositionSnapshot
 }
 
 enum EastMoneyAPIError: LocalizedError {
@@ -97,7 +99,7 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchIndices() async throws -> [MarketIndexItem] {
-        let rawURL = "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f12,f13,f14&secids=1.000001,0.399001,0.399006"
+        let rawURL = "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f12,f13,f14&secids=1.000001,1.000300,0.399001,0.399006"
         guard let url = URL(string: rawURL) else {
             throw EastMoneyAPIError.invalidURL(rawURL)
         }
@@ -111,6 +113,8 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             throw EastMoneyAPIError.invalidPayload("指数行情缺少 data.diff")
         }
 
+        let preferredOrder = ["000001", "000300", "399001", "399006"]
+
         return diff.compactMap { item in
             guard
                 let code = string(item["f12"]),
@@ -122,6 +126,9 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
                 return nil
             }
             return MarketIndexItem(code: code, name: name, latest: latest, change: change, changePercent: changePercent)
+        }
+        .sorted { lhs, rhs in
+            (preferredOrder.firstIndex(of: lhs.code) ?? .max) < (preferredOrder.firstIndex(of: rhs.code) ?? .max)
         }
     }
 
@@ -144,7 +151,19 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             fundType: string(data["FTYPE"]) ?? string(data["FUNDTYPE"]) ?? "--",
             riskLevel: string(data["RISKLEVEL"]) ?? "--",
             subscriptionStatus: string(data["SGZT"]) ?? "--",
-            redemptionStatus: string(data["SHZT"]) ?? "--"
+            redemptionStatus: string(data["SHZT"]) ?? "--",
+            unitNAV: double(data["DWJZ"]),
+            unitNAVDate: string(data["FSRQ"]),
+            accumulatedNAV: double(data["LJJZ"]),
+            scale: double(data["ENDNAV"]),
+            oneMonthReturn: double(data["SYL_Y"]),
+            oneMonthRank: rankText(value: data["RANKM"]),
+            threeMonthReturn: double(data["SYL_3Y"]),
+            threeMonthRank: rankText(value: data["RANKQ"]),
+            sixMonthReturn: double(data["SYL_6Y"]),
+            sixMonthRank: rankText(value: data["RANKHY"]),
+            oneYearReturn: double(data["SYL_1N"]),
+            oneYearRank: rankText(value: data["RANKY"])
         )
     }
 
@@ -163,13 +182,114 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             guard
                 let rawDate = string(row["FSRQ"]),
                 let date = DisplayFormatter.date(rawDate),
-                let value = double(row["DWJZ"])
+                let unitValue = double(row["DWJZ"])
             else {
                 return nil
             }
-            return NAVPoint(date: date, value: value)
+            return NAVPoint(
+                date: date,
+                unitValue: unitValue,
+                accumulatedValue: double(row["LJJZ"]),
+                dailyChangePercent: double(row["JZZZL"])
+            )
         }
         .sorted { $0.date < $1.date }
+    }
+
+    func fetchValuationTrend(code: String) async throws -> FundValuationTrend? {
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMApi/FundVarietieValuationDetail.ashx?FCODE=\(code)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
+
+        let object = try await request(url)
+        guard let root = object as? [String: Any] else {
+            throw EastMoneyAPIError.invalidPayload("估值曲线返回为空")
+        }
+
+        guard
+            let expansion = root["Expansion"] as? [String: Any],
+            let officialNAV = double(expansion["DWJZ"])
+        else {
+            return nil
+        }
+
+        let rows = root["Datas"] as? [String] ?? []
+        let points = rows.compactMap { row -> FundValuationPoint? in
+            let components = row.split(separator: ",")
+            guard components.count >= 3 else { return nil }
+            let time = String(components[0])
+            guard let changePercent = Double(components[2]) else { return nil }
+            return FundValuationPoint(time: time, changePercent: changePercent)
+        }
+
+        guard !points.isEmpty else { return nil }
+
+        return FundValuationTrend(
+            officialNAV: officialNAV,
+            officialNAVDate: string(expansion["FSRQ"]),
+            points: points
+        )
+    }
+
+    func fetchPositionSnapshot(code: String) async throws -> FundPositionSnapshot {
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMNewApi/FundMNInverstPosition?FCODE=\(code)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
+
+        let object = try await request(url)
+        guard let root = object as? [String: Any], let data = root["Datas"] as? [String: Any] else {
+            throw EastMoneyAPIError.invalidPayload("持仓明细缺少 Datas")
+        }
+
+        let stocks = data["fundStocks"] as? [[String: Any]] ?? []
+        guard !stocks.isEmpty else {
+            return FundPositionSnapshot(asOfDate: string(root["Expansion"]), holdings: [])
+        }
+
+        let secIDs = stocks.compactMap { item -> String? in
+            guard let exchange = string(item["NEWTEXCH"]), let code = string(item["GPDM"]) else {
+                return nil
+            }
+            return "\(exchange).\(code)"
+        }
+        .joined(separator: ",")
+
+        var quotesByCode: [String: [String: Any]] = [:]
+        if !secIDs.isEmpty {
+            let quoteURLString = "https://push2.eastmoney.com/api/qt/ulist.np/get?fields=f2,f3,f4,f12,f13,f14,f292&fltt=2&secids=\(secIDs)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+            if let quoteURL = URL(string: quoteURLString) {
+                if let quoteObject = try? await request(quoteURL),
+                   let quoteRoot = quoteObject as? [String: Any],
+                   let quoteData = quoteRoot["data"] as? [String: Any],
+                   let diff = quoteData["diff"] as? [[String: Any]]
+                {
+                    quotesByCode = Dictionary(uniqueKeysWithValues: diff.compactMap { item in
+                        guard let code = string(item["f12"]) else { return nil }
+                        return (code, item)
+                    })
+                }
+            }
+        }
+
+        let holdings = stocks.compactMap { item -> FundPositionHolding? in
+            guard let code = string(item["GPDM"]), let name = string(item["GPJC"]) else {
+                return nil
+            }
+            let quote = quotesByCode[code]
+            return FundPositionHolding(
+                code: code,
+                name: name,
+                latestPrice: double(quote?["f2"]),
+                changePercent: double(quote?["f3"]),
+                positionRatio: double(item["JZBL"]),
+                changeFromPrevious: double(item["PCTNVCHG"]),
+                changeFromPreviousType: string(item["PCTNVCHGTYPE"])
+            )
+        }
+
+        return FundPositionSnapshot(asOfDate: string(root["Expansion"]), holdings: holdings)
     }
 
     private func fetchFallbackEstimates(for snapshots: [RemoteFundSnapshot]) async -> [String: FundEstimateSnapshot] {
@@ -247,6 +367,7 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
 
     private func makeRequest(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
+        request.timeoutInterval = 20
         request.setValue(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
             forHTTPHeaderField: "User-Agent"
@@ -258,7 +379,7 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         switch value {
         case let string as String:
             let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            return trimmed.isEmpty || trimmed == "--" ? nil : trimmed
         case let number as NSNumber:
             return number.stringValue
         default:
@@ -277,5 +398,15 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         default:
             return nil
         }
+    }
+
+    private func rankText(value: Any?) -> String? {
+        if let text = string(value) {
+            return text
+        }
+        if let number = double(value) {
+            return String(Int(number))
+        }
+        return nil
     }
 }

@@ -146,11 +146,82 @@ struct FundProfile: Hashable {
     let riskLevel: String
     let subscriptionStatus: String
     let redemptionStatus: String
+    let unitNAV: Double?
+    let unitNAVDate: String?
+    let accumulatedNAV: Double?
+    let scale: Double?
+    let oneMonthReturn: Double?
+    let oneMonthRank: String?
+    let threeMonthReturn: Double?
+    let threeMonthRank: String?
+    let sixMonthReturn: Double?
+    let sixMonthRank: String?
+    let oneYearReturn: Double?
+    let oneYearRank: String?
 }
 
 struct NAVPoint: Identifiable, Hashable {
     let date: Date
-    let value: Double
+    let unitValue: Double
+    let accumulatedValue: Double?
+    let dailyChangePercent: Double?
+
+    var id: TimeInterval {
+        date.timeIntervalSince1970
+    }
+}
+
+struct FundValuationPoint: Identifiable, Hashable {
+    let time: String
+    let changePercent: Double
+
+    var id: String { time }
+}
+
+struct FundValuationTrend: Hashable {
+    let officialNAV: Double
+    let officialNAVDate: String?
+    let points: [FundValuationPoint]
+
+    var latestPoint: FundValuationPoint? {
+        points.last
+    }
+
+    var latestEstimatedNAV: Double? {
+        guard let latestPoint else { return nil }
+        return officialNAV * (1 + latestPoint.changePercent / 100)
+    }
+}
+
+struct FundPositionHolding: Identifiable, Hashable {
+    let code: String
+    let name: String
+    let latestPrice: Double?
+    let changePercent: Double?
+    let positionRatio: Double?
+    let changeFromPrevious: Double?
+    let changeFromPreviousType: String?
+
+    var id: String { code }
+
+    var previousPeriodText: String {
+        guard changeFromPreviousType != "新增" else { return "新增" }
+        guard let changeFromPrevious else { return "--" }
+        let arrow = changeFromPrevious >= 0 ? "↑" : "↓"
+        return "\(arrow) \(String(format: "%.2f%%", abs(changeFromPrevious)))"
+    }
+}
+
+struct FundPositionSnapshot: Hashable {
+    let asOfDate: String?
+    let holdings: [FundPositionHolding]
+}
+
+struct FundYieldPoint: Identifiable, Hashable {
+    let date: Date
+    let fundYield: Double
+    let benchmarkYield: Double?
+    let peerAverageYield: Double?
 
     var id: TimeInterval {
         date.timeIntervalSince1970
@@ -202,9 +273,9 @@ enum AppIconOption: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .ice: return "冰川钱包"
-        case .deep: return "深空资产卡"
-        case .emerald: return "翡翠流光"
+        case .ice: return "冰川"
+        case .deep: return "深海"
+        case .emerald: return "翡翠"
         }
     }
 
@@ -244,15 +315,21 @@ enum AppIconOption: String, Codable, CaseIterable, Identifiable {
 enum ChartRange: String, CaseIterable, Identifiable {
     case month = "y"
     case quarter = "3y"
+    case halfYear = "6y"
     case year = "n"
+    case threeYears = "3n"
+    case fiveYears = "5n"
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .month: return "近 1 月"
-        case .quarter: return "近 3 月"
-        case .year: return "近 1 年"
+        case .month: return "月"
+        case .quarter: return "季"
+        case .halfYear: return "半年"
+        case .year: return "一年"
+        case .threeYears: return "三年"
+        case .fiveYears: return "五年"
         }
     }
 }
@@ -299,9 +376,9 @@ struct AppState: Codable {
         AppState(
             deviceId: deviceId,
             holdings: [
-                StoredHolding(code: "110011", name: "易方达优质精选混合(QDII)", shares: 120, costPerUnit: 4.61, notes: "默认示例组合", isPinned: true),
-                StoredHolding(code: "001632", name: "天弘中证食品饮料ETF联接C", shares: 200, costPerUnit: 1.95),
-                StoredHolding(code: "161725", name: "招商中证白酒指数(LOF)A", shares: 80, costPerUnit: 0.68)
+                StoredHolding(code: "110011", name: "易方达优质精选混合（QDII）", shares: 120, costPerUnit: 4.61, notes: "默认示例组合", isPinned: true),
+                StoredHolding(code: "001632", name: "天弘中证食品饮料 ETF 联接 C", shares: 200, costPerUnit: 1.95),
+                StoredHolding(code: "161725", name: "招商中证白酒指数（LOF）A", shares: 80, costPerUnit: 0.68)
             ],
             theme: .system,
             appIcon: .ice,
@@ -371,6 +448,21 @@ enum DisplayFormatter {
         priceFormatter.string(from: NSNumber(value: value)) ?? String(format: "%.4f", value)
     }
 
+    static func plain(_ value: Double, minimumFractionDigits: Int = 2, maximumFractionDigits: Int = 2) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.minimumFractionDigits = minimumFractionDigits
+        formatter.maximumFractionDigits = maximumFractionDigits
+        return formatter.string(from: NSNumber(value: value)) ?? String(value)
+    }
+
+    static func signedPlain(_ value: Double, minimumFractionDigits: Int = 2, maximumFractionDigits: Int = 2) -> String {
+        let absolute = plain(abs(value), minimumFractionDigits: minimumFractionDigits, maximumFractionDigits: maximumFractionDigits)
+        if value > 0 { return "+\(absolute)" }
+        if value < 0 { return "-\(absolute)" }
+        return absolute
+    }
     static func percent(_ value: Double) -> String {
         String(format: "%+.2f%%", value)
     }
@@ -382,7 +474,7 @@ enum DisplayFormatter {
 
     static func date(_ rawValue: String?) -> Date? {
         guard let rawValue, !rawValue.isEmpty else { return nil }
-        let formats = ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"]
+        let formats = ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd", "MM-dd"]
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
@@ -406,6 +498,14 @@ enum DisplayFormatter {
             return date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
         }
         return date.formatted(.dateTime.month(.twoDigits).day(.twoDigits))
+    }
+
+    static func monthDayOrTime(_ rawValue: String?) -> String {
+        guard let rawValue else { return "--" }
+        if rawValue.contains(":") {
+            return quoteTimestamp(rawValue, preferTime: true)
+        }
+        return dayLabel(rawValue)
     }
 }
 

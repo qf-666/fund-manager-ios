@@ -1,15 +1,39 @@
 import SwiftUI
 import Charts
 
+private enum FundDetailTab: String, CaseIterable, Identifiable {
+    case valuation = "净值估算"
+    case positions = "持仓明细"
+    case netValue = "历史净值"
+    case cumulative = "累计收益"
+    case profile = "基金概况"
+
+    var id: String { rawValue }
+}
+
+private struct CumulativeReturnPoint: Identifiable {
+    let date: Date
+    let fundReturn: Double
+    let accumulatedReturn: Double?
+
+    var id: TimeInterval {
+        date.timeIntervalSince1970
+    }
+}
+
 struct FundDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
 
     let holdingID: UUID
 
-    @State private var selectedRange: ChartRange = .year
+    @State private var selectedTab: FundDetailTab = .valuation
+    @State private var selectedRange: ChartRange = .month
     @State private var series: [NAVPoint] = []
     @State private var profile: FundProfile?
-    @State private var isLoading = false
+    @State private var valuationTrend: FundValuationTrend?
+    @State private var positionSnapshot: FundPositionSnapshot?
+    @State private var isLoadingOverview = false
+    @State private var isLoadingSeries = false
     @State private var editingHolding: StoredHolding?
 
     private var holding: StoredHolding? {
@@ -21,17 +45,33 @@ struct FundDetailView: View {
         return viewModel.quote(for: holding.code)
     }
 
+    private var cumulativeSeries: [CumulativeReturnPoint] {
+        guard let first = series.first else { return [] }
+        let baseUnit = first.unitValue
+        let baseAccumulated = first.accumulatedValue
+
+        return series.map { point in
+            let fundReturn = ((point.unitValue / baseUnit) - 1) * 100
+            let accumulatedReturn = baseAccumulated.flatMap { base in
+                guard let current = point.accumulatedValue, base != 0 else { return nil }
+                return ((current / base) - 1) * 100
+            }
+            return CumulativeReturnPoint(date: point.date, fundReturn: fundReturn, accumulatedReturn: accumulatedReturn)
+        }
+    }
+
     var body: some View {
         Group {
             if let holding {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 16) {
                         headerCard(for: holding)
-                        chartCard
-                        profileCard
+                        tabBar
+                        tabContent(for: holding)
                     }
                     .padding(16)
                 }
+                .background(Color(.systemGroupedBackground))
                 .navigationTitle(holding.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -41,8 +81,12 @@ struct FundDetailView: View {
                         }
                     }
                 }
-                .task(id: selectedRange) {
-                    await loadData(for: holding.code)
+                .task(id: holding.code) {
+                    await loadInitialData(for: holding.code)
+                }
+                .onChange(of: selectedRange) { _ in
+                    guard let holding else { return }
+                    Task { await loadSeries(for: holding.code) }
                 }
                 .sheet(item: $editingHolding) { draft in
                     EditHoldingSheet(holding: draft) { updated in
@@ -55,171 +99,546 @@ struct FundDetailView: View {
         }
     }
 
-    @ViewBuilder
     private func headerCard(for holding: StoredHolding) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(holding.code)
+                    Text(holding.name)
+                        .font(.title3.weight(.semibold))
+                    Text("\(holding.code) · 持有 \(DisplayFormatter.plain(holding.shares)) 份")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(quote?.name ?? holding.name)
-                        .font(.title3.weight(.semibold))
                 }
                 Spacer()
-                if let quote {
-                    Text(DisplayFormatter.quoteTimestamp(quote.displayTimestamp, preferTime: !quote.prefersOfficialSnapshot))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(DisplayFormatter.monthDayOrTime(quote?.displayTimestamp ?? profile?.unitNAVDate))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(quote?.displayPrice.map(DisplayFormatter.price) ?? "--")
+                Text(displayPriceText)
                     .font(.system(size: 34, weight: .bold, design: .rounded))
-                if let changePercent = quote?.displayChangePercent {
-                    Text(DisplayFormatter.percent(changePercent))
-                        .font(.headline)
-                        .foregroundStyle(changePercent.trendColor)
-                }
+                Text(displayChangeText)
+                    .font(.headline)
+                    .foregroundStyle(displayChangeColor)
             }
 
-            let totalCost = holding.totalCost
-            let marketValue = viewModel.marketValue(for: holding)
-            let totalPnL = viewModel.totalPnL(for: holding)
-            let dailyPnL = viewModel.dailyPnL(for: holding)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                statPill(title: "持有份额", value: DisplayFormatter.price(holding.shares))
-                statPill(title: "单位成本", value: DisplayFormatter.price(holding.costPerUnit))
-                statPill(title: "持仓成本", value: DisplayFormatter.currency(totalCost))
-                statPill(title: "持仓市值", value: marketValue.map(DisplayFormatter.currency) ?? "--")
-                statPill(title: "累计收益", value: totalPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (totalPnL ?? 0).trendColor)
-                statPill(title: "今日收益", value: dailyPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (dailyPnL ?? 0).trendColor)
-            }
-
-            if !holding.notes.isEmpty {
-                Text(holding.notes)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                HeaderBadge(title: "持有额", value: viewModel.marketValue(for: holding).map(DisplayFormatter.currency) ?? "--")
+                HeaderBadge(title: "持有收益", value: viewModel.totalPnL(for: holding).map(DisplayFormatter.signedCurrency) ?? "--", tint: (viewModel.totalPnL(for: holding) ?? 0).trendColor)
+                HeaderBadge(title: "今日收益", value: viewModel.dailyPnL(for: holding).map(DisplayFormatter.signedCurrency) ?? "--", tint: (viewModel.dailyPnL(for: holding) ?? 0).trendColor)
             }
         }
         .padding()
-        .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private var chartCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("净值曲线")
-                    .font(.headline)
-                Spacer()
-                Picker("区间", selection: $selectedRange) {
-                    ForEach(ChartRange.allCases) { range in
-                        Text(range.title).tag(range)
+    private var tabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(FundDetailTab.allCases) { tab in
+                    Button {
+                        selectedTab = tab
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(selectedTab == tab ? Color.white : Color.primary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(selectedTab == tab ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+                            .clipShape(Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 260)
-            }
-
-            if isLoading {
-                ProgressView("加载曲线中…")
-                    .frame(maxWidth: .infinity, minHeight: 220)
-            } else if series.isEmpty {
-                EmptyStateView(
-                    "暂无净值数据",
-                    systemImage: "chart.line.uptrend.xyaxis",
-                    description: Text("可以稍后刷新，或尝试切换其他基金。")
-                )
-                .frame(maxWidth: .infinity, minHeight: 220)
-            } else {
-                Chart(series) { point in
-                    LineMark(
-                        x: .value("日期", point.date),
-                        y: .value("净值", point.value)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.blue)
-
-                    AreaMark(
-                        x: .value("日期", point.date),
-                        y: .value("净值", point.value)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.blue.opacity(0.12))
-                }
-                .frame(height: 240)
             }
         }
-        .padding()
-        .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     @ViewBuilder
-    private var profileCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("基金信息")
-                .font(.headline)
+    private func tabContent(for holding: StoredHolding) -> some View {
+        switch selectedTab {
+        case .valuation:
+            valuationSection(for: holding)
+        case .positions:
+            positionsSection
+        case .netValue:
+            netValueSection
+        case .cumulative:
+            cumulativeSection
+        case .profile:
+            profileSection
+        }
+    }
 
-            if let profile {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    infoItem(title: "基金名称", value: profile.name)
-                    infoItem(title: "基金代码", value: profile.code)
-                    infoItem(title: "基金类型", value: profile.fundType)
-                    infoItem(title: "风险等级", value: profile.riskLevel)
-                    infoItem(title: "基金公司", value: profile.company)
-                    infoItem(title: "基金经理", value: profile.manager)
-                    infoItem(title: "申购状态", value: profile.subscriptionStatus)
-                    infoItem(title: "赎回状态", value: profile.redemptionStatus)
+    private func valuationSection(for holding: StoredHolding) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let valuationTrend, !valuationTrend.points.isEmpty {
+                cardContainer(title: "净值估算图") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Chart(valuationTrend.points) { point in
+                            LineMark(
+                                x: .value("时间", point.time),
+                                y: .value("估算净值", estimatedNAV(for: point, trend: valuationTrend))
+                            )
+                            .foregroundStyle(Color.green)
+                            .interpolationMethod(.monotone)
+
+                            RuleMark(y: .value("单位净值", valuationTrend.officialNAV))
+                                .foregroundStyle(Color.secondary.opacity(0.7))
+                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        }
+                        .frame(height: 240)
+                        .chartYAxis {
+                            AxisMarks(position: .leading)
+                        }
+                        .chartXAxis {
+                            AxisMarks(values: ["09:30", "10:30", "11:30", "13:00", "14:00", "15:00"]) { _ in
+                                AxisGridLine()
+                                AxisValueLabel()
+                            }
+                        }
+
+                        HStack {
+                            Text("单位净值：\(DisplayFormatter.price(valuationTrend.officialNAV))")
+                            Spacer()
+                            if let latestPoint = valuationTrend.latestPoint {
+                                Text("估算涨幅：\(DisplayFormatter.percent(latestPoint.changePercent))")
+                                    .foregroundStyle(latestPoint.changePercent.trendColor)
+                            }
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                }
+
+                cardContainer(title: "估值摘要") {
+                    valuationFallbackMetrics(for: holding)
                 }
             } else {
-                ProgressView("加载详情中…")
-                    .frame(maxWidth: .infinity, minHeight: 120)
+                cardContainer(title: "净值估算") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("当前接口没有返回分时估算曲线，先展示实时估值与收益。")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        valuationFallbackMetrics(for: holding)
+                    }
+                }
             }
         }
-        .padding()
-        .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+    private var positionsSection: some View {
+        Group {
+            if isLoadingOverview && positionSnapshot == nil {
+                loadingCard("加载持仓明细中…")
+            } else if let positionSnapshot, !positionSnapshot.holdings.isEmpty {
+                cardContainer(title: "持仓明细", subtitle: positionSnapshot.asOfDate.map { "截止日期：\($0)" }) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(positionSnapshot.holdings.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                Divider()
+                            }
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.name)
+                                            .font(.headline)
+                                        Text(item.code)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(item.positionRatio.map { String(format: "%.2f%%", $0) } ?? "--")
+                                        .font(.headline)
+                                }
+
+                                HStack(spacing: 12) {
+                                    DetailMetric(title: "价格", value: item.latestPrice.map { DisplayFormatter.plain($0) } ?? "--")
+                                    DetailMetric(title: "涨跌幅", value: item.changePercent.map(DisplayFormatter.percent) ?? "--", tint: (item.changePercent ?? 0).trendColor)
+                                    DetailMetric(title: "较上期", value: item.previousPeriodText)
+                                }
+                            }
+                            .padding(.vertical, 14)
+                        }
+                    }
+                }
+            } else {
+                EmptyStateView("暂无持仓明细", systemImage: "list.bullet.rectangle")
+            }
+        }
     }
 
-    private func loadData(for code: String) async {
-        isLoading = true
-        async let points = viewModel.loadNetValueSeries(for: code, range: selectedRange)
+    private var netValueSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            rangeSelector
+
+            if isLoadingSeries && series.isEmpty {
+                loadingCard("加载历史净值中…")
+            } else if series.isEmpty {
+                EmptyStateView("暂无历史净值", systemImage: "chart.line.uptrend.xyaxis")
+            } else {
+                cardContainer(title: "历史净值") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        legendRow([
+                            ("单位净值", .blue),
+                            ("累计净值", .red)
+                        ])
+
+                        Chart(series) { point in
+                            LineMark(
+                                x: .value("日期", point.date),
+                                y: .value("单位净值", point.unitValue)
+                            )
+                            .foregroundStyle(.blue)
+                            .interpolationMethod(.monotone)
+
+                            if let accumulatedValue = point.accumulatedValue {
+                                LineMark(
+                                    x: .value("日期", point.date),
+                                    y: .value("累计净值", accumulatedValue)
+                                )
+                                .foregroundStyle(.red)
+                                .interpolationMethod(.monotone)
+                            }
+                        }
+                        .frame(height: 240)
+                        .chartYAxis {
+                            AxisMarks(position: .leading)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var cumulativeSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            rangeSelector
+
+            if isLoadingSeries && cumulativeSeries.isEmpty {
+                loadingCard("加载累计收益中…")
+            } else if cumulativeSeries.isEmpty {
+                EmptyStateView("暂无累计收益数据", systemImage: "chart.xyaxis.line")
+            } else {
+                cardContainer(title: "累计收益") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        legendRow([
+                            ("本基金", .blue),
+                            ("累计净值", .red)
+                        ])
+
+                        Chart(cumulativeSeries) { point in
+                            LineMark(
+                                x: .value("日期", point.date),
+                                y: .value("本基金", point.fundReturn)
+                            )
+                            .foregroundStyle(.blue)
+                            .interpolationMethod(.monotone)
+
+                            if let accumulatedReturn = point.accumulatedReturn {
+                                LineMark(
+                                    x: .value("日期", point.date),
+                                    y: .value("累计净值", accumulatedReturn)
+                                )
+                                .foregroundStyle(.red)
+                                .interpolationMethod(.monotone)
+                            }
+                        }
+                        .frame(height: 240)
+                        .chartYAxis {
+                            AxisMarks(position: .leading) { value in
+                                AxisGridLine()
+                                AxisValueLabel {
+                                    if let percent = value.as(Double.self) {
+                                        Text(String(format: "%.1f%%", percent))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var profileSection: some View {
+        Group {
+            if isLoadingOverview && profile == nil {
+                loadingCard("加载基金概况中…")
+            } else if let profile {
+                VStack(alignment: .leading, spacing: 14) {
+                    let rankItems: [(String, Double?, String?)] = [
+                        ("近1月", profile.oneMonthReturn, profile.oneMonthRank),
+                        ("近3月", profile.threeMonthReturn, profile.threeMonthRank),
+                        ("近6月", profile.sixMonthReturn, profile.sixMonthRank),
+                        ("近1年", profile.oneYearReturn, profile.oneYearRank)
+                    ]
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        ForEach(Array(rankItems.enumerated()), id: \.offset) { _, item in
+                            RankCard(title: item.0, value: item.1, rank: item.2)
+                        }
+                    }
+
+                    cardContainer(title: "基金概况") {
+                        VStack(spacing: 0) {
+                            InfoRow(title: "单位净值", value: profile.unitNAV.map { "\(DisplayFormatter.price($0))（\(profile.unitNAVDate ?? "--")）" } ?? "--")
+                            Divider()
+                            InfoRow(title: "累计净值", value: profile.accumulatedNAV.map(DisplayFormatter.price) ?? "--")
+                            Divider()
+                            InfoRow(title: "基金类型", value: profile.fundType)
+                            Divider()
+                            InfoRow(title: "基金公司", value: profile.company)
+                            Divider()
+                            InfoRow(title: "基金经理", value: profile.manager)
+                            Divider()
+                            InfoRow(title: "交易状态", value: "\(profile.subscriptionStatus) \(profile.redemptionStatus)")
+                            Divider()
+                            InfoRow(title: "基金规模", value: scaleText(profile.scale))
+                        }
+                    }
+                }
+            } else {
+                EmptyStateView("暂无基金概况", systemImage: "doc.text.magnifyingglass")
+            }
+        }
+    }
+
+    private var rangeSelector: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(ChartRange.allCases) { range in
+                    Button {
+                        selectedRange = range
+                    } label: {
+                        Text(range.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(selectedRange == range ? Color.white : Color.primary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(selectedRange == range ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func valuationFallbackMetrics(for holding: StoredHolding) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                DetailMetric(title: "估算净值", value: displayPriceText)
+                DetailMetric(title: "涨跌幅", value: displayChangeText, tint: displayChangeColor)
+                DetailMetric(title: "更新时间", value: DisplayFormatter.monthDayOrTime(quote?.displayTimestamp ?? profile?.unitNAVDate))
+            }
+            HStack(spacing: 12) {
+                DetailMetric(title: "持有额", value: viewModel.marketValue(for: holding).map(DisplayFormatter.currency) ?? "--")
+                DetailMetric(title: "持有收益", value: viewModel.totalPnL(for: holding).map(DisplayFormatter.signedCurrency) ?? "--", tint: (viewModel.totalPnL(for: holding) ?? 0).trendColor)
+                DetailMetric(title: "估算收益", value: viewModel.dailyPnL(for: holding).map(DisplayFormatter.signedCurrency) ?? "--", tint: (viewModel.dailyPnL(for: holding) ?? 0).trendColor)
+            }
+        }
+    }
+
+    private func cardContainer<Content: View>(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.headline)
+                if let subtitle {
+                    Spacer()
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            content()
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func loadingCard(_ title: String) -> some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 120)
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func legendRow(_ items: [(String, Color)]) -> some View {
+        HStack(spacing: 16) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(item.1)
+                        .frame(width: 8, height: 8)
+                    Text(item.0)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var displayPriceText: String {
+        if let price = quote?.displayPrice {
+            return DisplayFormatter.price(price)
+        }
+        if let estimated = valuationTrend?.latestEstimatedNAV {
+            return DisplayFormatter.price(estimated)
+        }
+        if let nav = profile?.unitNAV {
+            return DisplayFormatter.price(nav)
+        }
+        return "--"
+    }
+
+    private var displayChangeText: String {
+        if let change = quote?.displayChangePercent {
+            return DisplayFormatter.percent(change)
+        }
+        if let change = valuationTrend?.latestPoint?.changePercent {
+            return DisplayFormatter.percent(change)
+        }
+        return "--"
+    }
+
+    private var displayChangeColor: Color {
+        if let change = quote?.displayChangePercent {
+            return change.trendColor
+        }
+        if let change = valuationTrend?.latestPoint?.changePercent {
+            return change.trendColor
+        }
+        return .secondary
+    }
+
+    private func estimatedNAV(for point: FundValuationPoint, trend: FundValuationTrend) -> Double {
+        trend.officialNAV * (1 + point.changePercent / 100)
+    }
+
+    private func scaleText(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        if value >= 100_000_000 {
+            return "\(DisplayFormatter.plain(value / 100_000_000, minimumFractionDigits: 2, maximumFractionDigits: 2)) 亿"
+        }
+        if value >= 10_000 {
+            return "\(DisplayFormatter.plain(value / 10_000, minimumFractionDigits: 2, maximumFractionDigits: 2)) 万"
+        }
+        return DisplayFormatter.plain(value, minimumFractionDigits: 2, maximumFractionDigits: 2)
+    }
+
+    private func loadInitialData(for code: String) async {
+        isLoadingOverview = true
+        isLoadingSeries = true
+
         async let profileTask = viewModel.loadProfile(for: code)
-        series = await points
+        async let valuationTask = viewModel.loadValuationTrend(for: code)
+        async let positionsTask = viewModel.loadPositionSnapshot(for: code)
+        async let seriesTask = viewModel.loadNetValueSeries(for: code, range: selectedRange)
+
         profile = await profileTask
-        isLoading = false
+        valuationTrend = await valuationTask
+        positionSnapshot = await positionsTask
+        series = await seriesTask
+
+        isLoadingOverview = false
+        isLoadingSeries = false
     }
 
-    private func statPill(title: String, value: String, tint: Color = .primary) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func loadSeries(for code: String) async {
+        isLoadingSeries = true
+        series = await viewModel.loadNetValueSeries(for: code, range: selectedRange)
+        isLoadingSeries = false
+    }
+}
+
+private struct HeaderBadge: View {
+    let title: String
+    let value: String
+    var tint: Color = .primary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(tint)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
+        .padding(10)
+        .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
+}
 
-    private func infoItem(title: String, value: String) -> some View {
+private struct DetailMetric: View {
+    let title: String
+    let value: String
+    var tint: Color = .primary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct RankCard: View {
+    let title: String
+    let value: Double?
+    let rank: String?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(value)
-                .font(.body.weight(.medium))
+            Text(value.map(DisplayFormatter.percent) ?? "--")
+                .font(.headline)
+                .foregroundStyle((value ?? 0).trendColor)
+            Text(rank.map { "排名 \($0)" } ?? "--")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+private struct InfoRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 12)
     }
 }

@@ -1,0 +1,148 @@
+<svg width="1500" height="940" viewBox="0 0 1500 940" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="28" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1500" height="940" fill="#F4F6FA"/>
+  <text x="84" y="78" fill="#101828" font-size="40" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">基金助手 · 插件同构 iOS 版</text>
+  <text x="84" y="116" fill="#667085" font-size="18" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">这版不走概念稿，直接按你发的插件结构做原生化：列表像插件，详情页保留五个分段页。</text>
+
+  <g transform="translate(86 168)" filter="url(#shadow)">
+    <rect width="430" height="720" rx="48" fill="#FBFCFE"/>
+    <rect x="145" y="18" width="140" height="28" rx="14" fill="#111827"/>
+    <text x="32" y="84" fill="#101828" font-size="28" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">基金</text>
+    <text x="32" y="112" fill="#98A2B3" font-size="14" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">首页结构直接对齐插件首页</text>
+
+    <g transform="translate(24 142)">
+      <rect width="86" height="82" rx="18" fill="#FFFFFF"/>
+      <text x="14" y="28" fill="#101828" font-size="13" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">上证指数</text>
+      <text x="14" y="52" fill="#16A34A" font-size="22" font-weight="700" font-family="Segoe UI, Arial, sans-serif">4051.43</text>
+      <text x="14" y="72" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">-4.12  -0.10%</text>
+    </g>
+    <g transform="translate(120 142)">
+      <rect width="86" height="82" rx="18" fill="#FFFFFF"/>
+      <text x="14" y="28" fill="#101828" font-size="13" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">沪深300</text>
+      <text x="14" y="52" fill="#16A34A" font-size="22" font-weight="700" font-family="Segoe UI, Arial, sans-serif">4728.67</text>
+      <text x="14" y="72" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">-7.94  -0.17%</text>
+    </g>
+    <g transform="translate(216 142)">
+      <rect width="86" height="82" rx="18" fill="#FFFFFF"/>
+      <text x="14" y="28" fill="#101828" font-size="13" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">深证成指</text>
+      <text x="14" y="52" fill="#EF4444" font-size="22" font-weight="700" font-family="Segoe UI, Arial, sans-serif">14885.42</text>
+      <text x="14" y="72" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">89.09  0.60%</text>
+    </g>
+    <g transform="translate(312 142)">
+      <rect width="94" height="82" rx="18" fill="#FFFFFF"/>
+      <text x="14" y="28" fill="#101828" font-size="13" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">创业板指</text>
+      <text x="14" y="52" fill="#EF4444" font-size="22" font-weight="700" font-family="Segoe UI, Arial, sans-serif">3678.29</text>
+      <text x="14" y="72" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">52.02  1.43%</text>
+    </g>
+
+    <g transform="translate(24 244)">
+      <rect width="382" height="104" rx="24" fill="#FFFFFF"/>
+      <text x="18" y="28" fill="#98A2B3" font-size="12" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">组合汇总</text>
+      <text x="18" y="62" fill="#101828" font-size="30" font-weight="700" font-family="Segoe UI, Arial, sans-serif">¥ 1,053.41</text>
+      <text x="18" y="86" fill="#EF4444" font-size="14" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">持有收益 +¥ 29.32</text>
+      <text x="248" y="86" fill="#16A34A" font-size="14" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">今日收益 -¥ 0.56</text>
+    </g>
+
+    <g transform="translate(24 368)">
+      <rect width="382" height="282" rx="24" fill="#FFFFFF"/>
+      <text x="18" y="26" fill="#98A2B3" font-size="12" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">基金列表</text>
+      <line x1="18" y1="38" x2="364" y2="38" stroke="#EEF2F6"/>
+
+      <text x="18" y="60" fill="#667085" font-size="11" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">基金名称</text>
+      <text x="166" y="60" fill="#667085" font-size="11" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">估算净值</text>
+      <text x="250" y="60" fill="#667085" font-size="11" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">持有额</text>
+      <text x="314" y="60" fill="#667085" font-size="11" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Arial, sans-serif">收益</text>
+
+      <rect x="12" y="74" width="358" height="82" rx="16" fill="#FAFBFC"/>
+      <text x="18" y="98" fill="#101828" font-size="15" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">天弘中证新能源车A</text>
+      <text x="18" y="120" fill="#98A2B3" font-size="11" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">011512 · 更新时间 04-17</text>
+      <text x="166" y="100" fill="#101828" font-size="15" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3386</text>
+      <text x="166" y="124" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">-0.06%</text>
+      <text x="250" y="100" fill="#101828" font-size="15" font-weight="700" font-family="Segoe UI, Arial, sans-serif">941.18</text>
+      <text x="250" y="124" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">-0.56</text>
+      <text x="314" y="100" fill="#EF4444" font-size="15" font-weight="700" font-family="Segoe UI, Arial, sans-serif">25.10</text>
+      <text x="314" y="124" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">2.74%</text>
+
+      <rect x="12" y="166" width="358" height="82" rx="16" fill="#FAFBFC"/>
+      <text x="18" y="190" fill="#101828" font-size="15" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">银河中证机器人指数发起</text>
+      <text x="18" y="212" fill="#98A2B3" font-size="11" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">估算收益走插件同口径</text>
+      <text x="166" y="192" fill="#101828" font-size="15" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.5576</text>
+      <text x="166" y="216" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">0.79%</text>
+      <text x="250" y="192" fill="#101828" font-size="15" font-weight="700" font-family="Segoe UI, Arial, sans-serif">112.23</text>
+      <text x="250" y="216" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">0.88</text>
+      <text x="314" y="192" fill="#EF4444" font-size="15" font-weight="700" font-family="Segoe UI, Arial, sans-serif">4.22</text>
+      <text x="314" y="216" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">3.91%</text>
+    </g>
+
+    <g transform="translate(24 668)">
+      <rect width="382" height="42" rx="16" fill="#FFFFFF"/>
+      <text x="18" y="27" fill="#2563EB" font-size="13" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">首页列表直接显示收益核心字段，不再绕到详情页再看。</text>
+    </g>
+  </g>
+
+  <g transform="translate(594 168)" filter="url(#shadow)">
+    <rect width="430" height="720" rx="48" fill="#FBFCFE"/>
+    <rect x="145" y="18" width="140" height="28" rx="14" fill="#111827"/>
+    <text x="30" y="80" fill="#101828" font-size="22" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">天弘中证新能源车A（011512）</text>
+    <text x="30" y="108" fill="#98A2B3" font-size="14" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">详情页保留插件的五个分段页</text>
+
+    <g transform="translate(24 136)">
+      <rect width="84" height="36" rx="12" fill="#2F6BFF"/>
+      <text x="42" y="24" fill="#FFFFFF" font-size="13" font-weight="700" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">净值估算</text>
+      <rect x="94" width="84" height="36" rx="12" fill="#FFFFFF"/>
+      <text x="136" y="24" fill="#667085" font-size="13" font-weight="700" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">持仓明细</text>
+      <rect x="188" width="84" height="36" rx="12" fill="#FFFFFF"/>
+      <text x="230" y="24" fill="#667085" font-size="13" font-weight="700" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">历史净值</text>
+      <rect x="282" width="84" height="36" rx="12" fill="#FFFFFF"/>
+      <text x="324" y="24" fill="#667085" font-size="13" font-weight="700" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">累计收益</text>
+      <rect x="376" width="84" height="36" rx="12" fill="#FFFFFF" opacity="0"/>
+    </g>
+    <g transform="translate(24 184)">
+      <rect width="382" height="44" rx="14" fill="#FFFFFF"/>
+      <text x="20" y="28" fill="#667085" font-size="13" font-weight="600" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">基金概况也保留，但收进页签里，不再弹层化。</text>
+    </g>
+
+    <g transform="translate(24 244)">
+      <rect width="382" height="292" rx="24" fill="#FFFFFF"/>
+      <text x="18" y="30" fill="#101828" font-size="16" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">天弘中证新能源车A [011512] 净值估算图</text>
+      <line x1="26" y1="66" x2="350" y2="66" stroke="#E5E7EB"/>
+      <line x1="26" y1="102" x2="350" y2="102" stroke="#E5E7EB"/>
+      <line x1="26" y1="138" x2="350" y2="138" stroke="#E5E7EB"/>
+      <line x1="26" y1="174" x2="350" y2="174" stroke="#E5E7EB"/>
+      <line x1="26" y1="210" x2="350" y2="210" stroke="#E5E7EB"/>
+      <line x1="26" y1="246" x2="350" y2="246" stroke="#E5E7EB"/>
+      <line x1="26" y1="156" x2="350" y2="156" stroke="#6B7280" stroke-width="1.2"/>
+      <path d="M26 84 L36 178 L52 206 L66 194 L84 118 L104 146 L122 134 L150 170 L176 154 L206 162 L234 212 L264 198 L292 128 L322 166 L350 150" stroke="#16A34A" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="14" y="70" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3539</text>
+      <text x="14" y="106" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3503</text>
+      <text x="14" y="142" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3467</text>
+      <text x="14" y="178" fill="#6B7280" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3394</text>
+      <text x="14" y="214" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3358</text>
+      <text x="14" y="250" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.3321</text>
+      <text x="332" y="70" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">1.09%</text>
+      <text x="336" y="106" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">0.81%</text>
+      <text x="338" y="142" fill="#EF4444" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">0.54%</text>
+      <text x="342" y="178" fill="#6B7280" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">0.00%</text>
+      <text x="338" y="214" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">-0.27%</text>
+      <text x="336" y="250" fill="#16A34A" font-size="12" font-weight="700" font-family="Segoe UI, Arial, sans-serif">-0.54%</text>
+      <text x="44" y="270" fill="#98A2B3" font-size="12" font-weight="600" font-family="Segoe UI, Arial, sans-serif">09:30</text>
+      <text x="108" y="270" fill="#98A2B3" font-size="12" font-weight="600" font-family="Segoe UI, Arial, sans-serif">10:30</text>
+      <text x="170" y="270" fill="#98A2B3" font-size="12" font-weight="600" font-family="Segoe UI, Arial, sans-serif">11:30/13:00</text>
+      <text x="280" y="270" fill="#98A2B3" font-size="12" font-weight="600" font-family="Segoe UI, Arial, sans-serif">14:00</text>
+      <text x="334" y="270" fill="#98A2B3" font-size="12" font-weight="600" font-family="Segoe UI, Arial, sans-serif">15:00</text>
+    </g>
+
+    <g transform="translate(24 556)">
+      <rect width="382" height="108" rx="24" fill="#FFFFFF"/>
+      <text x="18" y="28" fill="#101828" font-size="14" font-weight="700" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">详情页信息结构</text>
+      <text x="18" y="54" fill="#667085" font-size="13" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">1. 顶部保留五个页签</text>
+      <text x="18" y="76" fill="#667085" font-size="13" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">2. 图表尽量接近插件图的字段和标注方式</text>
+      <text x="18" y="98" fill="#667085" font-size="13" font-weight="500" font-family="PingFang SC, Microsoft YaHei, Segoe UI, Arial, sans-serif">3. 视觉改成原生卡片，不再像网页弹层</text>
+    </g>
+  </g>
+</svg>

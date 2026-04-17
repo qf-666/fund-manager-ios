@@ -43,28 +43,37 @@ def main() -> int:
         errors.append("ZhihuFundsApp.swift missing scenePhase change hook")
 
     expected_home = [
-        "\u6301\u4ed3\u6210\u672c",
-        "\u6301\u4ed3\u5e02\u503c",
-        "\u6301\u6709\u4efd\u989d",
-        "\u5355\u4f4d\u6210\u672c",
-        "\u7d2f\u8ba1\u6536\u76ca",
-        "\u4eca\u65e5\u6536\u76ca",
+        "\u57fa\u91d1\u52a9\u624b",
+        "\u5f53\u524d\u6301\u6709",
+        "\u6211\u7684\u57fa\u91d1",
+        "\u4f30\u7b97\u51c0\u503c",
+        "\u6301\u6709\u989d",
+        "\u6301\u6709\u6536\u76ca",
+        "\u6536\u76ca\u7387",
+        "\u6da8\u8dcc\u5e45",
+        "\u4f30\u7b97\u6536\u76ca",
     ]
     for label in expected_home:
         if label not in home_view:
             errors.append(f"HomeView.swift missing label: {label}")
 
     expected_detail = [
-        'statPill(title: "\u6301\u6709\u4efd\u989d"',
-        'statPill(title: "\u5355\u4f4d\u6210\u672c"',
-        'statPill(title: "\u6301\u4ed3\u6210\u672c"',
-        'statPill(title: "\u6301\u4ed3\u5e02\u503c"',
-        'statPill(title: "\u7d2f\u8ba1\u6536\u76ca"',
-        'statPill(title: "\u4eca\u65e5\u6536\u76ca"',
+        "enum FundDetailTab",
+        "\u51c0\u503c\u4f30\u7b97",
+        "\u6301\u4ed3\u660e\u7ec6",
+        "\u5386\u53f2\u51c0\u503c",
+        "\u7d2f\u8ba1\u6536\u76ca",
+        "\u57fa\u91d1\u6982\u51b5",
+        "\u51c0\u503c\u4f30\u7b97\u56fe",
+        "\u4f30\u503c\u6458\u8981",
+        "\u622a\u6b62\u65e5\u671f",
+        "\u4ef7\u683c",
+        "\u8f83\u4e0a\u671f",
+        "\u6392\u540d",
     ]
     for label in expected_detail:
         if label not in detail_view:
-            errors.append(f"FundDetailView.swift missing token: {label}")
+            errors.append(f"FundDetailView.swift missing label: {label}")
 
     legacy_labels = [
         "\u6301\u4ed3\u4efd\u989d",

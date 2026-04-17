@@ -285,6 +285,24 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func loadValuationTrend(for code: String) async -> FundValuationTrend? {
+        do {
+            return try await api.fetchValuationTrend(code: code)
+        } catch {
+            present(error)
+            return nil
+        }
+    }
+
+    func loadPositionSnapshot(for code: String) async -> FundPositionSnapshot? {
+        do {
+            return try await api.fetchPositionSnapshot(code: code)
+        } catch {
+            present(error)
+            return nil
+        }
+    }
+
     private func fetchSnapshotsForCurrentHoldings() async throws -> [RemoteFundSnapshot] {
         let codes = state.holdings.map(\.code)
         guard !codes.isEmpty else { return [] }

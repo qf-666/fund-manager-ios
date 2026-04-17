@@ -4,57 +4,31 @@ struct HomeView: View {
     @EnvironmentObject private var viewModel: AppViewModel
     @State private var editingHolding: StoredHolding?
 
-    private let gridColumns = [GridItem(.flexible()), GridItem(.flexible())]
-
     var body: some View {
         List {
-            Section {
-                LazyVGrid(columns: gridColumns, spacing: 12) {
-                    MetricCard(title: "持仓成本", value: DisplayFormatter.currency(viewModel.summary.totalCost), subtitle: "按单位成本 × 持有份额汇总")
-                    MetricCard(title: "持仓市值", value: DisplayFormatter.currency(viewModel.summary.totalMarketValue), subtitle: "按已确认净值计算")
-                    MetricCard(
-                        title: "累计收益",
-                        value: DisplayFormatter.signedCurrency(viewModel.summary.totalPnL),
-                        subtitle: viewModel.summary.totalReturnPercent.map { DisplayFormatter.percent($0) } ?? "等待持仓数据",
-                        tint: viewModel.summary.totalPnL.trendColor
-                    )
-                    MetricCard(
-                        title: "今日收益",
-                        value: DisplayFormatter.signedCurrency(viewModel.summary.dailyPnL),
-                        subtitle: viewModel.lastUpdated.map { "更新于 \($0.formatted(date: .omitted, time: .shortened))" } ?? "尚未刷新",
-                        tint: viewModel.summary.dailyPnL.trendColor
-                    )
-                }
-                .padding(.vertical, 6)
-            }
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-
             if !viewModel.indices.isEmpty {
-                Section("市场指数") {
+                Section {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
                             ForEach(viewModel.indices) { index in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(index.name)
-                                        .font(.headline)
-                                    Text(DisplayFormatter.price(index.latest))
-                                        .font(.title3.weight(.semibold))
-                                    Text(DisplayFormatter.percent(index.changePercent))
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(index.changePercent.trendColor)
-                                    Text("涨跌 \(DisplayFormatter.signedCurrency(index.change))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(width: 180, alignment: .leading)
-                                .padding()
-                                .background(.thinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                MarketIndexCard(index: index)
                             }
                         }
                         .padding(.vertical, 4)
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
+            }
+
+            Section {
+                PortfolioSummaryCard(
+                    totalMarketValue: viewModel.summary.totalMarketValue,
+                    totalPnL: viewModel.summary.totalPnL,
+                    dailyPnL: viewModel.summary.dailyPnL,
+                    totalReturnPercent: viewModel.summary.totalReturnPercent,
+                    updatedAt: viewModel.lastUpdated
+                )
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
             Section {
@@ -62,19 +36,20 @@ struct HomeView: View {
                     EmptyStateView(
                         "还没有自选基金",
                         systemImage: "star",
-                        description: Text("去“搜索”页添加基金，或者在设置中恢复默认示例组合。")
+                        description: Text("去“搜索”页添加基金，或在设置里恢复默认示例组合。")
                     )
                 } else {
                     ForEach(viewModel.sortedHoldings) { holding in
                         NavigationLink {
                             FundDetailView(holdingID: holding.id)
                         } label: {
-                            FundRow(
+                            HoldingOverviewRow(
                                 holding: holding,
                                 quote: viewModel.quote(for: holding.code),
                                 marketValue: viewModel.marketValue(for: holding),
                                 totalPnL: viewModel.totalPnL(for: holding),
-                                dailyPnL: viewModel.dailyPnL(for: holding)
+                                dailyPnL: viewModel.dailyPnL(for: holding),
+                                totalReturnPercent: viewModel.returnPercent(for: holding)
                             )
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -103,10 +78,12 @@ struct HomeView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            } footer: {
+                Text("列表信息结构对齐插件首页：估算净值、持有额、持有收益、收益率、涨跌幅、估算收益、更新时间。")
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("基金工作台")
+        .navigationTitle("基金助手")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
@@ -131,114 +108,160 @@ struct HomeView: View {
     }
 }
 
-private struct MetricCard: View {
-    let title: String
-    let value: String
-    let subtitle: String
-    var tint: Color = .accentColor
+private struct MarketIndexCard: View {
+    let index: MarketIndexItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(index.name)
+                .font(.headline)
+            Text(DisplayFormatter.plain(index.latest, minimumFractionDigits: 2, maximumFractionDigits: 2))
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(tint)
-                .minimumScaleFactor(0.8)
-            Text(subtitle)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            Text("\(DisplayFormatter.signedPlain(index.change))  \(DisplayFormatter.percent(index.changePercent))")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(index.changePercent.trendColor)
         }
-        .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+        .frame(width: 168, alignment: .leading)
         .padding()
-        .background(.thinMaterial)
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
-private struct FundRow: View {
+private struct PortfolioSummaryCard: View {
+    let totalMarketValue: Double
+    let totalPnL: Double
+    let dailyPnL: Double
+    let totalReturnPercent: Double?
+    let updatedAt: Date?
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("当前持有")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(DisplayFormatter.currency(totalMarketValue))
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                }
+
+                Spacer()
+
+                if let updatedAt {
+                    Text("更新于 \(updatedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 12) {
+                SummaryMetric(title: "今日收益", value: DisplayFormatter.signedCurrency(dailyPnL), tint: dailyPnL.trendColor)
+                SummaryMetric(title: "持有收益", value: DisplayFormatter.signedCurrency(totalPnL), tint: totalPnL.trendColor)
+                SummaryMetric(title: "收益率", value: totalReturnPercent.map(DisplayFormatter.percent) ?? "--", tint: (totalReturnPercent ?? 0).trendColor)
+            }
+        }
+        .padding()
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+private struct SummaryMetric: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.headline)
+                .foregroundStyle(tint)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HoldingOverviewRow: View {
     let holding: StoredHolding
     let quote: RemoteFundSnapshot?
     let marketValue: Double?
     let totalPnL: Double?
     let dailyPnL: Double?
+    let totalReturnPercent: Double?
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text(holding.name)
-                        .font(.headline)
-                    if holding.isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(holding.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        if holding.isPinned {
+                            Image(systemName: "pin.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
                     }
+                    Text("\(holding.code) · 持有 \(DisplayFormatter.plain(holding.shares)) 份")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
-                Text(holding.code)
+                Spacer(minLength: 12)
+
+                Text(DisplayFormatter.monthDayOrTime(quote?.displayTimestamp))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                if holding.hasPosition {
-                    Text("持有份额 \(DisplayFormatter.price(holding.shares)) · 单位成本 \(DisplayFormatter.price(holding.costPerUnit))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("仅观察，不计入汇总")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
 
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 6) {
-                if let price = quote?.displayPrice {
-                    Text(DisplayFormatter.price(price))
-                        .font(.headline)
-                } else {
-                    Text("--")
-                        .font(.headline)
-                }
-
-                if let changePercent = quote?.displayChangePercent {
-                    Text(DisplayFormatter.percent(changePercent))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(changePercent.trendColor)
-                } else {
-                    Text("未更新")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let marketValue {
-                    Text("持仓市值 \(DisplayFormatter.currency(marketValue))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let totalPnL {
-                    Text("累计收益 \(DisplayFormatter.signedCurrency(totalPnL))")
-                        .font(.caption)
-                        .foregroundStyle(totalPnL.trendColor)
-                }
-
-                if let dailyPnL {
-                    Text("今日收益 \(DisplayFormatter.signedCurrency(dailyPnL))")
-                        .font(.caption2)
-                        .foregroundStyle(dailyPnL.trendColor)
-                }
-
-                if let quote {
-                    Text(DisplayFormatter.quoteTimestamp(quote.displayTimestamp, preferTime: !quote.prefersOfficialSnapshot))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            LazyVGrid(columns: columns, spacing: 12) {
+                HoldingMetric(title: "估算净值", value: quote?.displayPrice.map(DisplayFormatter.price) ?? "--")
+                HoldingMetric(title: "持有额", value: marketValue.map(DisplayFormatter.currency) ?? "--")
+                HoldingMetric(title: "涨跌幅", value: quote?.displayChangePercent.map(DisplayFormatter.percent) ?? "--", tint: (quote?.displayChangePercent ?? 0).trendColor)
+                HoldingMetric(title: "持有收益", value: totalPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (totalPnL ?? 0).trendColor)
+                HoldingMetric(title: "收益率", value: totalReturnPercent.map(DisplayFormatter.percent) ?? "--", tint: (totalReturnPercent ?? 0).trendColor)
+                HoldingMetric(title: "估算收益", value: dailyPnL.map(DisplayFormatter.signedCurrency) ?? "--", tint: (dailyPnL ?? 0).trendColor)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct HoldingMetric: View {
+    let title: String
+    let value: String
+    var tint: Color = .primary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
