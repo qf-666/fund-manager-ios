@@ -46,11 +46,14 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Install Python dependencies
-        run: python3 -m pip install pillow
+      - name: Prepare Python venv
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install pillow
 
       - name: Generate app icons
-        run: python3 scripts/generate_app_icons.py
+        run: .venv/bin/python scripts/generate_app_icons.py
 
       - name: Generate Xcode project
         run: xcodegen generate
