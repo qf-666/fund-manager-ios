@@ -45,7 +45,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Text("点按后系统会弹出确认提示，桌面图标会立即切换。")
+                    Text("点按后系统会弹出确认提示。若当前无签名或侧载安装方式不支持动态切换，可改装 Release 附带的固定图标版本。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -55,7 +55,7 @@ struct SettingsView: View {
                             .foregroundStyle(.red)
                     }
                 } else {
-                    Text("当前设备或运行环境不支持切换桌面图标。")
+                    Text("当前设备或运行环境不支持动态切换桌面图标，可改装固定图标版本。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

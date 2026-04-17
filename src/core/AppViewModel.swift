@@ -304,7 +304,7 @@ final class AppViewModel: ObservableObject {
         let suffix = "\(nsError.domain) \(nsError.code)"
 
         if nsError.code == -54 {
-            return "\(action)失败：\(nsError.localizedDescription)（\(suffix)），通常是安装包缺少可切换图标资源。"
+            return "\(action)失败：\(nsError.localizedDescription)（\(suffix)）。当前无签名或侧载安装方式可能不支持动态切换桌面图标，可改装 Release 附带的固定图标版本。"
         }
 
         return "\(action)失败：\(nsError.localizedDescription)（\(suffix)）"

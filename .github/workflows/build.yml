@@ -14,6 +14,26 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: universal
+            app_icon_name: AppIcon
+            alternate_icon_names: "AppIconDeep AppIconEmerald"
+            artifact_basename: ZhihuFunds
+          - variant: ice-fixed
+            app_icon_name: AppIcon
+            alternate_icon_names: ""
+            artifact_basename: ZhihuFunds-ice-fixed
+          - variant: deep-fixed
+            app_icon_name: AppIconDeep
+            alternate_icon_names: ""
+            artifact_basename: ZhihuFunds-deep-fixed
+          - variant: emerald-fixed
+            app_icon_name: AppIconEmerald
+            alternate_icon_names: ""
+            artifact_basename: ZhihuFunds-emerald-fixed
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,13 +46,19 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Generate app icons
+        run: python3 scripts/generate_app_icons.py
+
       - name: Generate Xcode project
         run: xcodegen generate
 
       - name: Check iOS 16 compatibility
         run: python3 scripts/check_ios16_compat.py
 
-      - name: Build app for iOS
+      - name: Check app icon setup
+        run: python3 scripts/check_app_icon_setup.py
+
+      - name: Build app for iOS (${{ matrix.variant }})
         run: |
           xcodebuild \
             -project ZhihuFunds.xcodeproj \
@@ -44,18 +70,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            ASSETCATALOG_COMPILER_APPICON_NAME="${{ matrix.app_icon_name }}" \
+            ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES="${{ matrix.alternate_icon_names }}" \
             build
 
       - name: Package release artifact
         id: package
         run: |
           chmod +x scripts/package_release.sh
-          scripts/package_release.sh ZhihuFunds build/DerivedData
+          scripts/package_release.sh ZhihuFunds build/DerivedData "${{ matrix.artifact_basename }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ZhihuFunds-ipa-${{ github.ref_name }}
+          name: ${{ matrix.artifact_basename }}-${{ github.ref_name }}
           path: ${{ steps.package.outputs.artifact }}
           if-no-files-found: error
 
@@ -66,15 +94,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download build artifact
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ZhihuFunds-ipa-${{ github.ref_name }}
+          pattern: ZhihuFunds*-${{ github.ref_name }}
           path: release-assets
+          merge-multiple: true
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ZhihuFunds iOS ${{ github.ref_name }}
+          name: 基金助手 iOS ${{ github.ref_name }}
           files: release-assets/*
           generate_release_notes: true

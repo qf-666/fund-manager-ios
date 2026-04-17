@@ -1,4 +1,4 @@
-# ZhihuFunds iOS
+# 基金助手 iOS
 
 一个从零搭建的 **iOS 基金自选 / 持仓跟踪 App**，用于把 `x2rr/funds` 浏览器插件的核心体验迁移到原生移动端。
 
@@ -7,11 +7,13 @@
 - 基金自选列表与持仓管理
 - 东方财富接口实时拉取基金净值 / 指数数据
 - 本地保存持仓份额、成本价、备注、置顶状态
-- 资产概览：总成本、市值、浮盈、当日变化
+- 资产概览：总成本、市值、浮盈、今日收益
 - 基金搜索与一键加入自选
 - 单基金详情：净值曲线、基础信息、持仓编辑
 - 主题切换：系统 / 浅色 / 深色
-- GitHub Actions 自动构建 iOS Simulator `.app.zip`
+- 图标切换：冰川钱包 / 深空资产卡 / 翡翠流光
+- 设置页可配置自动刷新频率（默认 10 秒）
+- GitHub Actions 自动构建无签名 `.ipa`
 - Tag 推送后自动创建 GitHub Release 并附带构建产物
 
 ## 技术栈
@@ -19,6 +21,7 @@
 - **SwiftUI**：原生界面开发
 - **Swift Concurrency**：异步网络请求与刷新
 - **XcodeGen**：使用 `project.yml` 生成 Xcode 工程
+- **Pillow**：生成 App Icon 多尺寸资源
 - **GitHub Actions**：macOS runner 自动编译与发布 Release
 
 ## 项目结构
@@ -27,7 +30,8 @@
 .
 ├─ project.yml                     # XcodeGen 工程定义
 ├─ .github/workflows/build.yml     # 自动构建/发布流水线
-├─ scripts/package_release.sh      # 将编译产物打包为 zip
+├─ scripts/generate_app_icons.py   # 从母版图生成 App Icon 资源
+├─ scripts/package_release.sh      # 将编译产物打包为 ipa
 ├─ src/core                        # 模型、网络、存储、ViewModel
 └─ src/zhihu                       # SwiftUI App 与页面
 ```
@@ -38,6 +42,7 @@
 
 ```bash
 brew install xcodegen
+python3 scripts/generate_app_icons.py
 xcodegen generate
 ```
 
@@ -52,14 +57,19 @@ open ZhihuFunds.xcodeproj
 ## GitHub Actions 行为
 
 ### Push 到 `main`
+- 自动生成 App Icon 资源
 - 自动生成 Xcode 工程
-- 构建 iOS Simulator 版本
-- 上传 `ZhihuFunds.app.zip` 作为 Actions artifact
+- 自动构建 4 份无签名 IPA：
+  - `ZhihuFunds.ipa`（通用版，支持动态切换图标的环境优先用它）
+  - `ZhihuFunds-ice-fixed.ipa`
+  - `ZhihuFunds-deep-fixed.ipa`
+  - `ZhihuFunds-emerald-fixed.ipa`
+- 自动上传为 Actions artifact
 
 ### Push Tag（如 `v1.0.0`）
 - 自动执行构建
 - 自动创建 GitHub Release
-- 自动把 `.app.zip` 挂到 Release 附件
+- 自动把全部 `.ipa` 挂到 Release 附件
 
 ## 数据来源说明
 
