@@ -31,6 +31,8 @@ struct FundDetailView: View {
     @State private var series: [NAVPoint] = []
     @State private var profile: FundProfile?
     @State private var valuationTrend: FundValuationTrend?
+    @State private var usingCachedValuationTrend = false
+    @State private var valuationTrendSavedAt: Date?
     @State private var positionSnapshot: FundPositionSnapshot?
     @State private var isLoadingOverview = false
     @State private var isLoadingSeries = false
@@ -177,6 +179,19 @@ struct FundDetailView: View {
             if let valuationTrend, !valuationTrend.points.isEmpty {
                 cardContainer(title: "净值估算图") {
                     VStack(alignment: .leading, spacing: 12) {
+                        if usingCachedValuationTrend {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("估值曲线暂时未更新，已展示上次成功缓存。")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                if let valuationTrendSavedAt {
+                                    Text("缓存时间：\(valuationTrendSavedAt.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
                         Chart(valuationTrend.points) { point in
                             LineMark(
                                 x: .value("时间", point.time),
@@ -539,13 +554,36 @@ struct FundDetailView: View {
         isLoadingOverview = true
         isLoadingSeries = true
 
+        if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
+            valuationTrend = cachedTrend.trend
+            valuationTrendSavedAt = cachedTrend.savedAt
+            usingCachedValuationTrend = true
+        } else {
+            valuationTrend = nil
+            valuationTrendSavedAt = nil
+            usingCachedValuationTrend = false
+        }
+
         async let profileTask = viewModel.loadProfile(for: code)
-        async let valuationTask = viewModel.loadValuationTrend(for: code)
         async let positionsTask = viewModel.loadPositionSnapshot(for: code)
         async let seriesTask = viewModel.loadNetValueSeries(for: code, range: selectedRange)
 
+        if let freshTrend = await viewModel.loadValuationTrend(for: code) {
+            valuationTrend = freshTrend
+            viewModel.cacheValuationTrend(freshTrend, for: code)
+            valuationTrendSavedAt = viewModel.cachedValuationTrend(for: code)?.savedAt
+            usingCachedValuationTrend = false
+        } else if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
+            valuationTrend = cachedTrend.trend
+            valuationTrendSavedAt = cachedTrend.savedAt
+            usingCachedValuationTrend = true
+        } else {
+            valuationTrend = nil
+            valuationTrendSavedAt = nil
+            usingCachedValuationTrend = false
+        }
+
         profile = await profileTask
-        valuationTrend = await valuationTask
         positionSnapshot = await positionsTask
         series = await seriesTask
 

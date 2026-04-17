@@ -176,6 +176,7 @@ final class AppViewModel: ObservableObject {
     func deleteHolding(_ holding: StoredHolding) {
         state.holdings.removeAll { $0.id == holding.id }
         quotes.removeValue(forKey: holding.code)
+        state.cachedValuationTrends.removeValue(forKey: holding.code)
         persist()
     }
 
@@ -224,7 +225,8 @@ final class AppViewModel: ObservableObject {
             holdings: seeded.holdings,
             theme: state.theme,
             appIcon: state.appIcon,
-            autoRefreshIntervalSeconds: state.autoRefreshIntervalSeconds
+            autoRefreshIntervalSeconds: state.autoRefreshIntervalSeconds,
+            cachedValuationTrends: [:]
         )
         persist()
         Task { await refreshAll(force: true) }
@@ -292,6 +294,18 @@ final class AppViewModel: ObservableObject {
             present(error)
             return nil
         }
+    }
+
+    func cachedValuationTrend(for code: String) -> CachedFundValuationTrend? {
+        state.cachedValuationTrends[code]
+    }
+
+    func cacheValuationTrend(_ trend: FundValuationTrend, for code: String) {
+        state.cachedValuationTrends[code] = CachedFundValuationTrend(
+            trend: trend,
+            savedAt: Date()
+        )
+        persist()
     }
 
     func loadPositionSnapshot(for code: String) async -> FundPositionSnapshot? {
