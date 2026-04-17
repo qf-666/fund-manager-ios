@@ -193,6 +193,54 @@ enum AppTheme: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum AppIconOption: String, Codable, CaseIterable, Identifiable {
+    case ice
+    case deep
+    case emerald
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ice: return "冰川钱包"
+        case .deep: return "深空资产卡"
+        case .emerald: return "翡翠流光"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .ice: return "原生感最强，冷静耐看"
+        case .deep: return "更像高端资产管理"
+        case .emerald: return "增长感更明显，辨识度更高"
+        }
+    }
+
+    var previewAssetName: String {
+        switch self {
+        case .ice: return "IconPreviewIce"
+        case .deep: return "IconPreviewDeep"
+        case .emerald: return "IconPreviewEmerald"
+        }
+    }
+
+    var alternateIconName: String? {
+        switch self {
+        case .ice: return nil
+        case .deep: return "AppIconDeep"
+        case .emerald: return "AppIconEmerald"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .ice: return Color(red: 0.30, green: 0.54, blue: 0.92)
+        case .deep: return Color(red: 0.19, green: 0.30, blue: 0.71)
+        case .emerald: return Color(red: 0.20, green: 0.69, blue: 0.62)
+        }
+    }
+}
+
 enum ChartRange: String, CaseIterable, Identifiable {
     case month = "y"
     case quarter = "3y"
@@ -213,12 +261,14 @@ struct AppState: Codable {
     var deviceId: String
     var holdings: [StoredHolding]
     var theme: AppTheme
+    var appIcon: AppIconOption
     var autoRefreshIntervalSeconds: Int
 
     enum CodingKeys: String, CodingKey {
         case deviceId
         case holdings
         case theme
+        case appIcon
         case autoRefreshIntervalSeconds
     }
 
@@ -226,11 +276,13 @@ struct AppState: Codable {
         deviceId: String,
         holdings: [StoredHolding],
         theme: AppTheme,
+        appIcon: AppIconOption = .ice,
         autoRefreshIntervalSeconds: Int = 10
     ) {
         self.deviceId = deviceId
         self.holdings = holdings
         self.theme = theme
+        self.appIcon = appIcon
         self.autoRefreshIntervalSeconds = autoRefreshIntervalSeconds
     }
 
@@ -239,6 +291,7 @@ struct AppState: Codable {
         deviceId = try container.decode(String.self, forKey: .deviceId)
         holdings = try container.decode([StoredHolding].self, forKey: .holdings)
         theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
+        appIcon = try container.decodeIfPresent(AppIconOption.self, forKey: .appIcon) ?? .ice
         autoRefreshIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .autoRefreshIntervalSeconds) ?? 10
     }
 
@@ -251,6 +304,7 @@ struct AppState: Codable {
                 StoredHolding(code: "161725", name: "招商中证白酒指数(LOF)A", shares: 80, costPerUnit: 0.68)
             ],
             theme: .system,
+            appIcon: .ice,
             autoRefreshIntervalSeconds: 10
         )
     }

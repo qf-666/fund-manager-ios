@@ -11,6 +11,7 @@ struct ZhihuFundsApp: App {
                 .environmentObject(viewModel)
                 .preferredColorScheme(viewModel.state.theme.colorScheme)
                 .task {
+                    await viewModel.syncAppIcon()
                     await viewModel.bootstrap()
                     if scenePhase == .active {
                         viewModel.startAutoRefresh()

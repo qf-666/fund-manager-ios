@@ -8,6 +8,7 @@ struct SettingsView: View {
 
     private let quickRefreshOptions = [5, 10, 30, 60]
     private let chipColumns = [GridItem(.adaptive(minimum: 78), spacing: 10)]
+    private let iconColumns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
 
     private var themeBinding: Binding<AppTheme> {
         Binding(
@@ -36,9 +37,33 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
+            Section("应用图标") {
+                if viewModel.supportsAlternateIcons {
+                    LazyVGrid(columns: iconColumns, alignment: .leading, spacing: 12) {
+                        ForEach(AppIconOption.allCases) { option in
+                            appIconCard(option)
+                        }
+                    }
+
+                    Text("点按后系统会弹出确认提示，桌面图标会立即切换。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let appIconErrorMessage = viewModel.appIconErrorMessage {
+                        Text(appIconErrorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                } else {
+                    Text("当前设备或运行环境不支持切换桌面图标。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("数据") {
                 LabeledContent("设备 ID", value: viewModel.state.deviceId)
-                    .font(.caption)
+                .font(.caption)
                 LabeledContent("自动刷新", value: viewModel.autoRefreshDescription)
 
                 if let lastUpdated = viewModel.lastUpdated {
@@ -188,5 +213,48 @@ struct SettingsView: View {
         .foregroundStyle(isSelected ? Color.white : Color.primary)
         .background(isSelected ? Color.accentColor : Color(.secondarySystemBackground))
         .clipShape(Capsule())
+    }
+
+    private func appIconCard(_ option: AppIconOption) -> some View {
+        let isSelected = viewModel.state.appIcon == option
+
+        return Button {
+            Task { await viewModel.setAppIcon(option) }
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(option.previewAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.title3)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, option.tint)
+                                .padding(8)
+                        }
+                    }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(option.title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(option.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? option.tint.opacity(0.14) : Color(.secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(isSelected ? option.tint : Color(.separator), lineWidth: isSelected ? 2 : 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }

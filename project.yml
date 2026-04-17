@@ -12,6 +12,11 @@ settings:
     TARGETED_DEVICE_FAMILY: 1,2
     DEVELOPMENT_LANGUAGE: zh-Hans
     SUPPORTS_MACCATALYST: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+    ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES:
+      - AppIconDeep
+      - AppIconEmerald
 targets:
   ZhihuFunds:
     type: application
@@ -25,7 +30,7 @@ targets:
     info:
       path: src/zhihu/Info.plist
       properties:
-        CFBundleDisplayName: ZhihuFunds
+        CFBundleDisplayName: 基金助手
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 @MainActor
 final class AppViewModel: ObservableObject {
@@ -10,6 +11,7 @@ final class AppViewModel: ObservableObject {
     @Published var isSearching = false
     @Published var errorMessage: String?
     @Published var lastUpdated: Date?
+    @Published var appIconErrorMessage: String?
 
     private let api: EastMoneyAPIProtocol
     private let store: PersistenceStore
@@ -66,6 +68,10 @@ final class AppViewModel: ObservableObject {
             return "\(seconds / 60) 分钟"
         }
         return "\(seconds) 秒"
+    }
+
+    var supportsAlternateIcons: Bool {
+        UIApplication.shared.supportsAlternateIcons
     }
 
     func bootstrap() async {
@@ -184,12 +190,40 @@ final class AppViewModel: ObservableObject {
         persist()
     }
 
+    func setAppIcon(_ icon: AppIconOption) async {
+        let previousIcon = state.appIcon
+        state.appIcon = icon
+        persist()
+
+        do {
+            try await applyAppIcon(icon)
+            appIconErrorMessage = nil
+        } catch {
+            state.appIcon = previousIcon
+            persist()
+            appIconErrorMessage = "切换图标失败：\(error.localizedDescription)"
+        }
+    }
+
+    func syncAppIcon() async {
+        guard supportsAlternateIcons else { return }
+        guard UIApplication.shared.alternateIconName != state.appIcon.alternateIconName else { return }
+
+        do {
+            try await applyAppIcon(state.appIcon)
+            appIconErrorMessage = nil
+        } catch {
+            appIconErrorMessage = "同步图标失败：\(error.localizedDescription)"
+        }
+    }
+
     func resetPortfolio() {
         let seeded = AppState.seeded(deviceId: state.deviceId)
         state = AppState(
             deviceId: seeded.deviceId,
             holdings: seeded.holdings,
             theme: state.theme,
+            appIcon: state.appIcon,
             autoRefreshIntervalSeconds: state.autoRefreshIntervalSeconds
         )
         persist()
@@ -263,5 +297,20 @@ final class AppViewModel: ObservableObject {
 
     private func present(_ error: Error) {
         errorMessage = error.localizedDescription
+    }
+
+    private func applyAppIcon(_ icon: AppIconOption) async throws {
+        guard supportsAlternateIcons else { return }
+        guard UIApplication.shared.alternateIconName != icon.alternateIconName else { return }
+
+        try await withCheckedThrowingContinuation { continuation in
+            UIApplication.shared.setAlternateIconName(icon.alternateIconName) { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
     }
 }
