@@ -2,6 +2,16 @@ import SwiftUI
 import Charts
 import UIKit
 
+private enum ValuationChartProxy {
+    static let baseURLString = "https://bronze-fire.exe.xyz/fund-manager-ios/valuation-png/"
+
+    static func imageURL(for code: String) -> URL? {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedCode.isEmpty else { return nil }
+        return URL(string: "\(baseURLString)\(normalizedCode).png")
+    }
+}
+
 private enum FundDetailTab: String, CaseIterable, Identifiable {
     case valuation = "净值估算"
     case positions = "持仓明细"
@@ -76,11 +86,7 @@ private final class ValuationChartLoader: ObservableObject {
     }
 
     private func makeURL(code: String) throws -> URL {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "j4.dfcfw.com"
-        components.path = "/charts/pic6/\(code).png"
-        guard let url = components.url else {
+        guard let url = ValuationChartProxy.imageURL(for: code) else {
             throw URLError(.badURL)
         }
         return url
@@ -316,7 +322,7 @@ struct FundDetailView: View {
                         }
                     }
 
-                    Text("图源链接：j4.dfcfw.com/charts/pic6/\(holding.code).png")
+                    Text("图源链接：bronze-fire.exe.xyz/fund-manager-ios/valuation-png/\(holding.code).png")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -612,8 +618,7 @@ struct FundDetailView: View {
     }
 
     private func valuationChartImageURL(for code: String) -> URL? {
-        let components = URLComponents(string: "https://j4.dfcfw.com/charts/pic6/\(code).png")
-        return components?.url
+        ValuationChartProxy.imageURL(for: code)
     }
 
     private func scaleText(_ value: Double?) -> String {
