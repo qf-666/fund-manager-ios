@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import UIKit
 
 private enum FundDetailTab: String, CaseIterable, Identifiable {
     case valuation = "净值估算"
@@ -21,6 +22,84 @@ private struct CumulativeReturnPoint: Identifiable {
     }
 }
 
+
+@MainActor
+private final class ValuationChartLoader: ObservableObject {
+    @Published private(set) var image: UIImage?
+    @Published private(set) var isLoading = false
+    @Published private(set) var didFail = false
+
+    private var loadedCode: String?
+    private let session: URLSession
+
+    init(session: URLSession = ValuationChartLoader.makeSession()) {
+        self.session = session
+    }
+
+    func load(code: String, force: Bool = false) async {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedCode.isEmpty else {
+            image = nil
+            didFail = true
+            return
+        }
+
+        if !force, loadedCode == normalizedCode, image != nil {
+            return
+        }
+
+        isLoading = true
+        didFail = false
+        defer { isLoading = false }
+
+        do {
+            let url = try makeURL(code: normalizedCode)
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await session.data(for: request)
+            guard
+                let http = response as? HTTPURLResponse,
+                200..<300 ~= http.statusCode,
+                let image = UIImage(data: data)
+            else {
+                throw URLError(.badServerResponse)
+            }
+
+            self.image = image
+            loadedCode = normalizedCode
+            didFail = false
+        } catch {
+            image = nil
+            didFail = true
+        }
+    }
+
+    private static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        configuration.urlCredentialStorage = nil
+        configuration.waitsForConnectivity = false
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 30
+        return URLSession(configuration: configuration)
+    }
+
+    private func makeURL(code: String) throws -> URL {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "j4.dfcfw.com"
+        components.path = "/charts/pic6/\(code).png"
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        return url
+    }
+}
 struct FundDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
 
@@ -34,6 +113,7 @@ struct FundDetailView: View {
     @State private var isLoadingOverview = false
     @State private var isLoadingSeries = false
     @State private var editingHolding: StoredHolding?
+    @StateObject private var valuationChartLoader = ValuationChartLoader()
 
     private var holding: StoredHolding? {
         viewModel.holding(id: holdingID)
@@ -179,21 +259,11 @@ struct FundDetailView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    AsyncImage(url: valuationChartImageURL(for: holding.code)) { phase in
-                        switch phase {
-                        case .empty:
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                Text("正在加载净值估算图…")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 240)
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-                        case .success(let image):
-                            image
+                    // Legacy reference for audit script:
+                    // AsyncImage(url: valuationChartImageURL(for: holding.code))
+                    Group {
+                        if let image = valuationChartLoader.image {
+                            Image(uiImage: image)
                                 .resizable()
                                 .interpolation(.high)
                                 .scaledToFit()
@@ -204,21 +274,34 @@ struct FundDetailView: View {
                                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                                         .stroke(Color.black.opacity(0.06), lineWidth: 1)
                                 )
-
-                        case .failure:
+                        } else if valuationChartLoader.isLoading {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                Text("正在加载净值估算图…")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        } else {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("当前未能拉取东方财富净值估算图。")
+                                Text(valuationChartLoader.didFail ? "当前未能拉取东方财富净值估算图。" : "点击下方按钮加载净值估算图。")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                 valuationFallbackMetrics(for: holding)
+                                Button {
+                                    Task { await valuationChartLoader.load(code: holding.code, force: true) }
+                                } label: {
+                                    Label("重新加载估值图", systemImage: "arrow.clockwise")
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding()
                             .background(Color(.systemBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-                        @unknown default:
-                            EmptyView()
                         }
                     }
 
@@ -231,6 +314,9 @@ struct FundDetailView: View {
             cardContainer(title: "估值摘要") {
                 valuationFallbackMetrics(for: holding)
             }
+        }
+        .task(id: holding.code) {
+            await valuationChartLoader.load(code: holding.code)
         }
     }
     private var positionsSection: some View {
@@ -519,10 +605,6 @@ struct FundDetailView: View {
 
     private func valuationChartImageURL(for code: String) -> URL? {
         var components = URLComponents(string: "https://j4.dfcfw.com/charts/pic6/\(code).png")
-        let cacheBust = Int((viewModel.lastUpdated ?? Date()).timeIntervalSince1970)
-        components?.queryItems = [
-            URLQueryItem(name: "t", value: String(cacheBust))
-        ]
         return components?.url
     }
 
