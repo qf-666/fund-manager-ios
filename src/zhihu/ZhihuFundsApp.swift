@@ -20,8 +20,7 @@ struct ZhihuFundsApp: App {
                 .onChange(of: scenePhase) { newPhase in
                     switch newPhase {
                     case .active:
-                        viewModel.startAutoRefresh()
-                        Task { await viewModel.refreshAll(force: true) }
+                        viewModel.sceneDidBecomeActive()
                     case .inactive, .background:
                         viewModel.stopAutoRefresh()
                     @unknown default:

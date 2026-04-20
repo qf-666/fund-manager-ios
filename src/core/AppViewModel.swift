@@ -16,6 +16,7 @@ final class AppViewModel: ObservableObject {
     private let api: EastMoneyAPIProtocol
     private let store: PersistenceStore
     private var hasBootstrapped = false
+    private var hasHandledInitialActivePhase = false
     private var autoRefreshTask: Task<Void, Never>?
     private var autoRefreshAllowed = false
 
@@ -113,8 +114,8 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func refreshAll(force: Bool = false) async {
-        guard !isRefreshing || force else { return }
+    func refreshAll(force _: Bool = false) async {
+        guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
 
@@ -148,6 +149,17 @@ final class AppViewModel: ObservableObject {
         } else {
             errorMessage = nil
         }
+    }
+
+    func sceneDidBecomeActive() {
+        startAutoRefresh()
+
+        guard hasHandledInitialActivePhase else {
+            hasHandledInitialActivePhase = true
+            return
+        }
+
+        Task { await refreshAll(force: true) }
     }
 
     func search(query: String) async {
