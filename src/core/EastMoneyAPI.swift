@@ -103,7 +103,12 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             )
         }
 
-        let fallbackEstimates = await fetchFallbackEstimates(for: snapshots)
+        let fallbackEstimates: [String: FundEstimateSnapshot]
+        if shouldFetchFallbackEstimates() {
+            fallbackEstimates = await fetchFallbackEstimates(for: snapshots)
+        } else {
+            fallbackEstimates = [:]
+        }
         return snapshots.map { $0.merged(with: fallbackEstimates[$0.code]) }
     }
 
@@ -317,6 +322,26 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             }
         }
         return estimates
+    }
+
+    private func shouldFetchFallbackEstimates(now: Date = Date()) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
+
+        let weekday = calendar.component(.weekday, from: now)
+        guard weekday != 1, weekday != 7 else { return false }
+
+        let hour = calendar.component(.hour, from: now)
+        let minute = calendar.component(.minute, from: now)
+        let minutesSinceMidnight = hour * 60 + minute
+
+        let morningOpen = 9 * 60 + 30
+        let morningClose = 11 * 60 + 30
+        let afternoonOpen = 13 * 60
+        let afternoonClose = 15 * 60 + 30
+
+        return (morningOpen...morningClose).contains(minutesSinceMidnight)
+            || (afternoonOpen...afternoonClose).contains(minutesSinceMidnight)
     }
 
     // fallback source kept aligned with plugin: https://fundgz.1234567.com.cn/js/{code}.js
