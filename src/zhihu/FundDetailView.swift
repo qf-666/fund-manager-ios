@@ -265,18 +265,7 @@ struct FundDetailView: View {
                     // Legacy reference for audit script:
                     // AsyncImage(url: valuationChartImageURL(for: holding.code))
                     Group {
-                        if !supportsDirectValuationPNG {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("当前设备处于 iOS 16.3 及以下。为避免详情页直连 PNG 图源再次触发崩溃，这里默认关闭图片请求，只保留估值摘要。")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                valuationFallbackMetrics(for: holding)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        } else if let image = valuationChartLoader.image {
+                        if let image = valuationChartLoader.image {
                             Image(uiImage: image)
                                 .resizable()
                                 .interpolation(.high)
@@ -300,7 +289,15 @@ struct FundDetailView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(valuationChartLoader.didFail ? "当前未能拉取东方财富净值估算图。" : "为了不影响详情页稳定性，改为手动点击后再加载净值估算图。")
+                                Text(
+                                    valuationChartLoader.didFail
+                                        ? "当前未能拉取东方财富净值估算图。"
+                                        : (
+                                            supportsDirectValuationPNG
+                                                ? "为了不影响详情页稳定性，改为手动点击后再加载净值估算图。"
+                                                : "当前设备处于 iOS 16.3 及以下。为避免自动请求再次触发详情页不稳定，这里改为仅在你手动点击后再加载净值估算图。"
+                                        )
+                                )
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                 valuationFallbackMetrics(for: holding)

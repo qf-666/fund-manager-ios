@@ -32,6 +32,14 @@ def main() -> int:
     if auto_load_snippet in detail_view:
         errors.append("FundDetailView.swift should not auto-load valuation PNG on enter")
 
+    manual_only_label = 'Label(valuationChartLoader.didFail ? "重新加载估值图" : "手动加载估值图"'
+    if manual_only_label not in detail_view:
+        errors.append("FundDetailView.swift should expose manual valuation PNG loading button")
+
+    blocked_ios163_branch = "if !supportsDirectValuationPNG {"
+    if blocked_ios163_branch in detail_view:
+        errors.append("FundDetailView.swift should not hard-block manual valuation PNG loading on iOS 16.3")
+
     if errors:
         print("Valuation PNG source check failed:")
         for item in errors:
