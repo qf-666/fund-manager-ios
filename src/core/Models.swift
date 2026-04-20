@@ -171,6 +171,33 @@ struct NAVPoint: Identifiable, Hashable {
     }
 }
 
+struct FundValuationPoint: Identifiable, Codable, Hashable {
+    let time: String
+    let changePercent: Double
+
+    var id: String { time }
+}
+
+struct FundValuationTrend: Codable, Hashable {
+    let officialNAV: Double
+    let officialNAVDate: String?
+    let points: [FundValuationPoint]
+
+    var latestPoint: FundValuationPoint? {
+        points.last
+    }
+
+    var latestEstimatedNAV: Double? {
+        guard let latestPoint else { return nil }
+        return officialNAV * (1 + latestPoint.changePercent / 100)
+    }
+}
+
+struct CachedFundValuationTrend: Codable, Hashable {
+    let trend: FundValuationTrend
+    let savedAt: Date
+}
+
 struct FundPositionHolding: Identifiable, Hashable {
     let code: String
     let name: String
@@ -318,6 +345,7 @@ struct AppState: Codable {
     var theme: AppTheme
     var appIcon: AppIconOption
     var autoRefreshIntervalSeconds: Int
+    var cachedValuationTrends: [String: CachedFundValuationTrend]
 
     enum CodingKeys: String, CodingKey {
         case deviceId
@@ -325,6 +353,7 @@ struct AppState: Codable {
         case theme
         case appIcon
         case autoRefreshIntervalSeconds
+        case cachedValuationTrends
     }
 
     init(
@@ -332,13 +361,15 @@ struct AppState: Codable {
         holdings: [StoredHolding],
         theme: AppTheme,
         appIcon: AppIconOption = .ice,
-        autoRefreshIntervalSeconds: Int = 10
+        autoRefreshIntervalSeconds: Int = 10,
+        cachedValuationTrends: [String: CachedFundValuationTrend] = [:]
     ) {
         self.deviceId = deviceId
         self.holdings = holdings
         self.theme = theme
         self.appIcon = appIcon
         self.autoRefreshIntervalSeconds = autoRefreshIntervalSeconds
+        self.cachedValuationTrends = cachedValuationTrends
     }
 
     init(from decoder: Decoder) throws {
@@ -348,6 +379,7 @@ struct AppState: Codable {
         theme = try container.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
         appIcon = try container.decodeIfPresent(AppIconOption.self, forKey: .appIcon) ?? .ice
         autoRefreshIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .autoRefreshIntervalSeconds) ?? 10
+        cachedValuationTrends = try container.decodeIfPresent([String: CachedFundValuationTrend].self, forKey: .cachedValuationTrends) ?? [:]
     }
 
     static func seeded(deviceId: String = UUID().uuidString) -> AppState {
@@ -360,7 +392,8 @@ struct AppState: Codable {
             ],
             theme: .system,
             appIcon: .ice,
-            autoRefreshIntervalSeconds: 10
+            autoRefreshIntervalSeconds: 10,
+            cachedValuationTrends: [:]
         )
     }
 }

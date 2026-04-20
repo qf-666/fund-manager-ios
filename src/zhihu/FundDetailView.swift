@@ -1,16 +1,5 @@
 import SwiftUI
 import Charts
-import UIKit
-
-private enum ValuationChartProxy {
-    static let baseURLString = "https://bronze-fire.exe.xyz/fund-manager-ios/valuation-png/"
-
-    static func imageURL(for code: String) -> URL? {
-        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedCode.isEmpty else { return nil }
-        return URL(string: "\(baseURLString)\(normalizedCode).png")
-    }
-}
 
 private enum FundDetailTab: String, CaseIterable, Identifiable {
     case valuation = "净值估算"
@@ -32,66 +21,6 @@ private struct CumulativeReturnPoint: Identifiable {
     }
 }
 
-
-@MainActor
-private final class ValuationChartLoader: ObservableObject {
-    @Published private(set) var image: UIImage?
-    @Published private(set) var isLoading = false
-    @Published private(set) var didFail = false
-
-    private var loadedCode: String?
-    private let session: URLSession
-
-    init(session: URLSession = .shared) {
-        self.session = session
-    }
-
-    func load(code: String, force: Bool = false) async {
-        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedCode.isEmpty else {
-            image = nil
-            didFail = true
-            return
-        }
-
-        if !force, loadedCode == normalizedCode, image != nil {
-            return
-        }
-
-        isLoading = true
-        didFail = false
-        defer { isLoading = false }
-
-        do {
-            let url = try makeURL(code: normalizedCode)
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 20
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            let (data, response) = try await session.data(for: request)
-            guard
-                let http = response as? HTTPURLResponse,
-                200..<300 ~= http.statusCode,
-                let image = UIImage(data: data)
-            else {
-                throw URLError(.badServerResponse)
-            }
-
-            self.image = image
-            loadedCode = normalizedCode
-            didFail = false
-        } catch {
-            image = nil
-            didFail = true
-        }
-    }
-
-    private func makeURL(code: String) throws -> URL {
-        guard let url = ValuationChartProxy.imageURL(for: code) else {
-            throw URLError(.badURL)
-        }
-        return url
-    }
-}
 struct FundDetailView: View {
     @EnvironmentObject private var viewModel: AppViewModel
 
@@ -101,11 +30,13 @@ struct FundDetailView: View {
     @State private var selectedRange: ChartRange = .month
     @State private var series: [NAVPoint] = []
     @State private var profile: FundProfile?
+    @State private var valuationTrend: FundValuationTrend?
+    @State private var usingCachedValuationTrend = false
+    @State private var valuationTrendSavedAt: Date?
     @State private var positionSnapshot: FundPositionSnapshot?
     @State private var isLoadingOverview = false
     @State private var isLoadingSeries = false
     @State private var editingHolding: StoredHolding?
-    @StateObject private var valuationChartLoader = ValuationChartLoader()
 
     private var holding: StoredHolding? {
         viewModel.holding(id: holdingID)
@@ -114,23 +45,6 @@ struct FundDetailView: View {
     private var quote: RemoteFundSnapshot? {
         guard let holding else { return nil }
         return viewModel.quote(for: holding.code)
-    }
-
-    private var supportsDirectValuationPNG: Bool {
-        let version = ProcessInfo.processInfo.operatingSystemVersion
-        if version.majorVersion > 16 {
-            return true
-        }
-        if version.majorVersion < 16 {
-            return false
-        }
-        if version.minorVersion > 3 {
-            return true
-        }
-        if version.minorVersion < 3 {
-            return false
-        }
-        return version.patchVersion > 0
     }
 
     private var cumulativeSeries: [CumulativeReturnPoint] {
@@ -262,74 +176,69 @@ struct FundDetailView: View {
 
     private func valuationSection(for holding: StoredHolding) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            cardContainer(title: "净值估算图") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("东方财富实时 PNG 图源，与插件当前展示方式保持一致。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    // Legacy reference for audit script:
-                    // AsyncImage(url: valuationChartImageURL(for: holding.code))
-                    Group {
-                        if let image = valuationChartLoader.image {
-                            Image(uiImage: image)
-                                .resizable()
-                                .interpolation(.high)
-                                .scaledToFit()
-                                .frame(maxWidth: .infinity)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                                )
-                        } else if valuationChartLoader.isLoading {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                Text("正在加载净值估算图…")
+            if let valuationTrend, !valuationTrend.points.isEmpty {
+                cardContainer(title: "净值估算图") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if usingCachedValuationTrend {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("估值曲线暂时未更新，已展示上次成功缓存。")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 240)
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text(
-                                    valuationChartLoader.didFail
-                                        ? "当前未能拉取东方财富净值估算图。"
-                                        : (
-                                            supportsDirectValuationPNG
-                                                ? "为了不影响详情页稳定性，改为手动点击后再加载净值估算图。"
-                                                : "当前设备处于 iOS 16.3 及以下。为避免自动请求再次触发详情页不稳定，这里改为仅在你手动点击后再加载净值估算图。"
-                                        )
-                                )
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                valuationFallbackMetrics(for: holding)
-                                Button {
-                                    Task { await valuationChartLoader.load(code: holding.code, force: true) }
-                                } label: {
-                                    Label(valuationChartLoader.didFail ? "重新加载估值图" : "手动加载估值图", systemImage: "arrow.clockwise")
-                                        .font(.subheadline.weight(.semibold))
+                                if let valuationTrendSavedAt {
+                                    Text("缓存时间：\(valuationTrendSavedAt.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
-                                .buttonStyle(.borderedProminent)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
+
+                        Chart(valuationTrend.points) { point in
+                            LineMark(
+                                x: .value("时间", point.time),
+                                y: .value("估算净值", estimatedNAV(for: point, trend: valuationTrend))
+                            )
+                            .foregroundStyle(Color.green)
+                            .interpolationMethod(.monotone)
+
+                            RuleMark(y: .value("单位净值", valuationTrend.officialNAV))
+                                .foregroundStyle(Color.secondary.opacity(0.7))
+                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        }
+                        .frame(height: 240)
+                        .chartYAxis {
+                            AxisMarks(position: .leading)
+                        }
+                        .chartXAxis {
+                            AxisMarks(values: ["09:30", "10:30", "11:30", "13:00", "14:00", "15:00"]) { _ in
+                                AxisGridLine()
+                                AxisValueLabel()
+                            }
+                        }
+
+                        HStack {
+                            Text("单位净值：\(DisplayFormatter.price(valuationTrend.officialNAV))")
+                            Spacer()
+                            if let latestPoint = valuationTrend.latestPoint {
+                                Text("估算涨幅：\(DisplayFormatter.percent(latestPoint.changePercent))")
+                                    .foregroundStyle(latestPoint.changePercent.trendColor)
+                            }
+                        }
+                        .font(.subheadline.weight(.medium))
                     }
-
-                    Text("图源链接：bronze-fire.exe.xyz/fund-manager-ios/valuation-png/\(holding.code).png")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
                 }
-            }
 
-            cardContainer(title: "估值摘要") {
-                valuationFallbackMetrics(for: holding)
+                cardContainer(title: "估值摘要") {
+                    valuationFallbackMetrics(for: holding)
+                }
+            } else {
+                cardContainer(title: "净值估算") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("当前接口没有返回分时估算曲线，先展示实时估值与收益。")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        valuationFallbackMetrics(for: holding)
+                    }
+                }
             }
         }
     }
@@ -597,6 +506,9 @@ struct FundDetailView: View {
         if let price = quote?.displayPrice {
             return DisplayFormatter.price(price)
         }
+        if let estimated = valuationTrend?.latestEstimatedNAV {
+            return DisplayFormatter.price(estimated)
+        }
         if let nav = profile?.unitNAV {
             return DisplayFormatter.price(nav)
         }
@@ -607,6 +519,9 @@ struct FundDetailView: View {
         if let change = quote?.displayChangePercent {
             return DisplayFormatter.percent(change)
         }
+        if let change = valuationTrend?.latestPoint?.changePercent {
+            return DisplayFormatter.percent(change)
+        }
         return "--"
     }
 
@@ -614,11 +529,14 @@ struct FundDetailView: View {
         if let change = quote?.displayChangePercent {
             return change.trendColor
         }
+        if let change = valuationTrend?.latestPoint?.changePercent {
+            return change.trendColor
+        }
         return .secondary
     }
 
-    private func valuationChartImageURL(for code: String) -> URL? {
-        ValuationChartProxy.imageURL(for: code)
+    private func estimatedNAV(for point: FundValuationPoint, trend: FundValuationTrend) -> Double {
+        trend.officialNAV * (1 + point.changePercent / 100)
     }
 
     private func scaleText(_ value: Double?) -> String {
@@ -636,9 +554,34 @@ struct FundDetailView: View {
         isLoadingOverview = true
         isLoadingSeries = true
 
+        if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
+            valuationTrend = cachedTrend.trend
+            valuationTrendSavedAt = cachedTrend.savedAt
+            usingCachedValuationTrend = true
+        } else {
+            valuationTrend = nil
+            valuationTrendSavedAt = nil
+            usingCachedValuationTrend = false
+        }
+
         async let profileTask = viewModel.loadProfile(for: code)
         async let positionsTask = viewModel.loadPositionSnapshot(for: code)
         async let seriesTask = viewModel.loadNetValueSeries(for: code, range: selectedRange)
+
+        if let freshTrend = await viewModel.loadValuationTrend(for: code) {
+            valuationTrend = freshTrend
+            viewModel.cacheValuationTrend(freshTrend, for: code)
+            valuationTrendSavedAt = viewModel.cachedValuationTrend(for: code)?.savedAt
+            usingCachedValuationTrend = false
+        } else if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
+            valuationTrend = cachedTrend.trend
+            valuationTrendSavedAt = cachedTrend.savedAt
+            usingCachedValuationTrend = true
+        } else {
+            valuationTrend = nil
+            valuationTrendSavedAt = nil
+            usingCachedValuationTrend = false
+        }
 
         profile = await profileTask
         positionSnapshot = await positionsTask
