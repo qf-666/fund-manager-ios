@@ -80,10 +80,14 @@ def main() -> int:
     required_api_tokens = [
         "fundgz.1234567.com.cn/js/",
         "fetchFallbackEstimates",
+        "let fallbackEstimates = await fetchFallbackEstimates(for: snapshots)",
     ]
     for token in required_api_tokens:
         if token not in api:
             errors.append(f"EastMoneyAPI.swift missing {token}")
+
+    if "shouldFetchFallbackEstimates" in api:
+        errors.append("EastMoneyAPI.swift should not gate fallback estimates by trading hours")
 
     if "按已确认净值计算" not in home:
         errors.append("HomeView.swift should clarify that持仓市值 uses confirmed NAV")
