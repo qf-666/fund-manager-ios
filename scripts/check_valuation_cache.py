@@ -39,7 +39,6 @@ def main() -> int:
         "if let freshTrend = await viewModel.loadValuationTrend",
         "viewModel.cacheValuationTrend",
         "viewModel.cachedValuationTrend(for: code)",
-        "估值曲线暂时未更新，已展示上次成功缓存",
     ]
     for token in detail_tokens:
         if token not in detail_view:

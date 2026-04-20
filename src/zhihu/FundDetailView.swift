@@ -176,69 +176,63 @@ struct FundDetailView: View {
 
     private func valuationSection(for holding: StoredHolding) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            if let valuationTrend, !valuationTrend.points.isEmpty {
-                cardContainer(title: "净值估算图") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if usingCachedValuationTrend {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("估值曲线暂时未更新，已展示上次成功缓存。")
+            cardContainer(title: "净值估算图") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("东方财富实时 PNG 图源，与插件当前展示方式保持一致。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    AsyncImage(url: valuationChartImageURL(for: holding.code)) { phase in
+                        switch phase {
+                        case .empty:
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                Text("正在加载净值估算图…")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
-                                if let valuationTrendSavedAt {
-                                    Text("缓存时间：\(valuationTrendSavedAt.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
                             }
-                        }
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                        Chart(valuationTrend.points) { point in
-                            LineMark(
-                                x: .value("时间", point.time),
-                                y: .value("估算净值", estimatedNAV(for: point, trend: valuationTrend))
-                            )
-                            .foregroundStyle(Color.green)
-                            .interpolationMethod(.monotone)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .interpolation(.high)
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                                )
 
-                            RuleMark(y: .value("单位净值", valuationTrend.officialNAV))
-                                .foregroundStyle(Color.secondary.opacity(0.7))
-                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        }
-                        .frame(height: 240)
-                        .chartYAxis {
-                            AxisMarks(position: .leading)
-                        }
-                        .chartXAxis {
-                            AxisMarks(values: ["09:30", "10:30", "11:30", "13:00", "14:00", "15:00"]) { _ in
-                                AxisGridLine()
-                                AxisValueLabel()
+                        case .failure:
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("当前未能拉取东方财富净值估算图。")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                valuationFallbackMetrics(for: holding)
                             }
-                        }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                        HStack {
-                            Text("单位净值：\(DisplayFormatter.price(valuationTrend.officialNAV))")
-                            Spacer()
-                            if let latestPoint = valuationTrend.latestPoint {
-                                Text("估算涨幅：\(DisplayFormatter.percent(latestPoint.changePercent))")
-                                    .foregroundStyle(latestPoint.changePercent.trendColor)
-                            }
+                        @unknown default:
+                            EmptyView()
                         }
-                        .font(.subheadline.weight(.medium))
                     }
-                }
 
-                cardContainer(title: "估值摘要") {
-                    valuationFallbackMetrics(for: holding)
+                    Text("图源链接：j4.dfcfw.com/charts/pic6/\(holding.code).png")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
-            } else {
-                cardContainer(title: "净值估算") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("当前接口没有返回分时估算曲线，先展示实时估值与收益。")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        valuationFallbackMetrics(for: holding)
-                    }
-                }
+            }
+
+            cardContainer(title: "估值摘要") {
+                valuationFallbackMetrics(for: holding)
             }
         }
     }
@@ -535,8 +529,13 @@ struct FundDetailView: View {
         return .secondary
     }
 
-    private func estimatedNAV(for point: FundValuationPoint, trend: FundValuationTrend) -> Double {
-        trend.officialNAV * (1 + point.changePercent / 100)
+    private func valuationChartImageURL(for code: String) -> URL? {
+        var components = URLComponents(string: "https://j4.dfcfw.com/charts/pic6/\(code).png")
+        let cacheBust = Int((viewModel.lastUpdated ?? Date()).timeIntervalSince1970)
+        components?.queryItems = [
+            URLQueryItem(name: "t", value: String(cacheBust))
+        ]
+        return components?.url
     }
 
     private func scaleText(_ value: Double?) -> String {
