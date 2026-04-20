@@ -30,9 +30,6 @@ struct FundDetailView: View {
     @State private var selectedRange: ChartRange = .month
     @State private var series: [NAVPoint] = []
     @State private var profile: FundProfile?
-    @State private var valuationTrend: FundValuationTrend?
-    @State private var usingCachedValuationTrend = false
-    @State private var valuationTrendSavedAt: Date?
     @State private var positionSnapshot: FundPositionSnapshot?
     @State private var isLoadingOverview = false
     @State private var isLoadingSeries = false
@@ -500,9 +497,6 @@ struct FundDetailView: View {
         if let price = quote?.displayPrice {
             return DisplayFormatter.price(price)
         }
-        if let estimated = valuationTrend?.latestEstimatedNAV {
-            return DisplayFormatter.price(estimated)
-        }
         if let nav = profile?.unitNAV {
             return DisplayFormatter.price(nav)
         }
@@ -513,17 +507,11 @@ struct FundDetailView: View {
         if let change = quote?.displayChangePercent {
             return DisplayFormatter.percent(change)
         }
-        if let change = valuationTrend?.latestPoint?.changePercent {
-            return DisplayFormatter.percent(change)
-        }
         return "--"
     }
 
     private var displayChangeColor: Color {
         if let change = quote?.displayChangePercent {
-            return change.trendColor
-        }
-        if let change = valuationTrend?.latestPoint?.changePercent {
             return change.trendColor
         }
         return .secondary
@@ -553,34 +541,9 @@ struct FundDetailView: View {
         isLoadingOverview = true
         isLoadingSeries = true
 
-        if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
-            valuationTrend = cachedTrend.trend
-            valuationTrendSavedAt = cachedTrend.savedAt
-            usingCachedValuationTrend = true
-        } else {
-            valuationTrend = nil
-            valuationTrendSavedAt = nil
-            usingCachedValuationTrend = false
-        }
-
         async let profileTask = viewModel.loadProfile(for: code)
         async let positionsTask = viewModel.loadPositionSnapshot(for: code)
         async let seriesTask = viewModel.loadNetValueSeries(for: code, range: selectedRange)
-
-        if let freshTrend = await viewModel.loadValuationTrend(for: code) {
-            valuationTrend = freshTrend
-            viewModel.cacheValuationTrend(freshTrend, for: code)
-            valuationTrendSavedAt = viewModel.cachedValuationTrend(for: code)?.savedAt
-            usingCachedValuationTrend = false
-        } else if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
-            valuationTrend = cachedTrend.trend
-            valuationTrendSavedAt = cachedTrend.savedAt
-            usingCachedValuationTrend = true
-        } else {
-            valuationTrend = nil
-            valuationTrendSavedAt = nil
-            usingCachedValuationTrend = false
-        }
 
         profile = await profileTask
         positionSnapshot = await positionsTask

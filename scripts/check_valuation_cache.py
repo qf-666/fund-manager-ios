@@ -15,42 +15,64 @@ def main() -> int:
 
     models = read("src/core/Models.swift")
     view_model = read("src/core/AppViewModel.swift")
+    api = read("src/core/EastMoneyAPI.swift")
     detail_view = read("src/zhihu/FundDetailView.swift")
 
-    model_tokens = [
-        "struct CachedFundValuationTrend",
-        "var cachedValuationTrends",
-        "case cachedValuationTrends",
-    ]
-    for token in model_tokens:
-        if token not in models:
-            errors.append(f"Models.swift missing {token}")
+    removed_tokens = {
+        "src/core/Models.swift": [
+            "struct FundValuationPoint",
+            "struct FundValuationTrend",
+            "struct CachedFundValuationTrend",
+            "cachedValuationTrends",
+        ],
+        "src/core/AppViewModel.swift": [
+            "loadValuationTrend(for code: String)",
+            "cachedValuationTrend(for code: String)",
+            "cacheValuationTrend(_ trend:",
+            "cachedValuationTrends",
+        ],
+        "src/core/EastMoneyAPI.swift": [
+            "fetchValuationTrend(code: String)",
+            "FundVarietieValuationDetail.ashx",
+        ],
+        "src/zhihu/FundDetailView.swift": [
+            "valuationTrend",
+            "usingCachedValuationTrend",
+            "valuationTrendSavedAt",
+            "loadValuationTrend(for: code)",
+            "cacheValuationTrend",
+            "cachedValuationTrend(for: code)",
+        ],
+    }
 
-    view_model_tokens = [
-        "func cachedValuationTrend(for code: String)",
-        "func cacheValuationTrend(_ trend: FundValuationTrend, for code: String)",
-        "state.cachedValuationTrends[code]",
-    ]
-    for token in view_model_tokens:
-        if token not in view_model:
-            errors.append(f"AppViewModel.swift missing {token}")
+    contents = {
+        "src/core/Models.swift": models,
+        "src/core/AppViewModel.swift": view_model,
+        "src/core/EastMoneyAPI.swift": api,
+        "src/zhihu/FundDetailView.swift": detail_view,
+    }
 
-    detail_tokens = [
-        "if let freshTrend = await viewModel.loadValuationTrend",
-        "viewModel.cacheValuationTrend",
-        "viewModel.cachedValuationTrend(for: code)",
+    for file, tokens in removed_tokens.items():
+        content = contents[file]
+        for token in tokens:
+            if token in content:
+                errors.append(f"{file} should not contain {token}")
+
+    required_detail_tokens = [
+        "AsyncImage(url: valuationChartImageURL(for: holding.code))",
+        "https://j4.dfcfw.com/charts/pic6/",
     ]
-    for token in detail_tokens:
+    for token in required_detail_tokens:
         if token not in detail_view:
             errors.append(f"FundDetailView.swift missing {token}")
 
     if errors:
-        print("Valuation cache check failed:")
+        print("Valuation legacy removal check failed:")
         for item in errors:
             print(f"- {item}")
         return 1
 
-    print("Valuation cache check passed.")
+    print("Valuation legacy removal check passed.")
     return 0
 
 
