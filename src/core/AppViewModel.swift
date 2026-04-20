@@ -118,18 +118,35 @@ final class AppViewModel: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        do {
-            async let indicesTask = api.fetchIndices()
-            async let snapshotsTask = fetchSnapshotsForCurrentHoldings()
-            let freshIndices = try await indicesTask
-            let freshSnapshots = try await snapshotsTask
+        var firstError: Error?
+        var didUpdate = false
 
+        do {
+            let freshIndices = try await api.fetchIndices()
             indices = freshIndices
-            quotes = Dictionary(uniqueKeysWithValues: freshSnapshots.map { ($0.code, $0) })
-            lastUpdated = Date()
-            errorMessage = nil
+            didUpdate = true
         } catch {
-            present(error)
+            firstError = error
+        }
+
+        do {
+            let freshSnapshots = try await fetchSnapshotsForCurrentHoldings()
+            quotes = Dictionary(uniqueKeysWithValues: freshSnapshots.map { ($0.code, $0) })
+            didUpdate = true
+        } catch {
+            if firstError == nil {
+                firstError = error
+            }
+        }
+
+        if didUpdate {
+            lastUpdated = Date()
+        }
+
+        if let firstError {
+            present(firstError)
+        } else {
+            errorMessage = nil
         }
     }
 

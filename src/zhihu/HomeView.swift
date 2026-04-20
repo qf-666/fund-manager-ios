@@ -79,7 +79,7 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("列表信息结构对齐插件首页：估算净值、持有额、持有收益、收益率、涨跌幅、估算收益、更新时间。")
+                Text("列表信息结构对齐插件首页：估算净值、持有额、持有收益、收益率、涨跌幅、估算收益、更新时间。持仓市值和持有收益按已确认净值计算。")
             }
         }
         .listStyle(.insetGrouped)
