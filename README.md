@@ -66,7 +66,7 @@ open ZhihuFunds.xcodeproj
   - `ZhihuFunds-emerald-fixed.ipa`
 - 自动上传为 Actions artifact
 
-### Push Tag（如 `v1.0.9`）
+### Push Tag（如 `v1.0.10`）
 - 自动执行构建
 - 自动创建 GitHub Release
 - 自动把全部 `.ipa` 挂到 Release 附件
@@ -82,4 +82,4 @@ open ZhihuFunds.xcodeproj
 
 ## 版本
 
-当前默认版本：`v1.0.9`
+当前默认版本：`v1.0.10`

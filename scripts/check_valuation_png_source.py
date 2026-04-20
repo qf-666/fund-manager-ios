@@ -20,11 +20,17 @@ def main() -> int:
         "https://j4.dfcfw.com/charts/pic6/",
         "东方财富实时 PNG 图源",
         "valuationChartImageURL(for code: String)",
+        "supportsDirectValuationPNG",
     ]
 
     for token in tokens:
         if token not in detail_view:
             errors.append(f"FundDetailView.swift missing {token}")
+
+    auto_load_snippet = """.task(id: holding.code) {
+            await valuationChartLoader.load(code: holding.code)"""
+    if auto_load_snippet in detail_view:
+        errors.append("FundDetailView.swift should not auto-load valuation PNG on enter")
 
     if errors:
         print("Valuation PNG source check failed:")
