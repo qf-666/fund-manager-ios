@@ -14,6 +14,7 @@ DISALLOWED_PATTERNS = {
     ".topBarLeading": "iOS 17+ toolbar placement",
     ".topBarTrailing": "iOS 17+ toolbar placement",
     "ContentUnavailableView(": "iOS 17+ SwiftUI unavailable-content view",
+    "connectionProxyDictionary": "CFNetwork proxy override can crash on iOS 16.x",
 }
 
 

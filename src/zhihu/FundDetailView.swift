@@ -32,7 +32,7 @@ private final class ValuationChartLoader: ObservableObject {
     private var loadedCode: String?
     private let session: URLSession
 
-    init(session: URLSession = ValuationChartLoader.makeSession()) {
+    init(session: URLSession = .shared) {
         self.session = session
     }
 
@@ -73,20 +73,6 @@ private final class ValuationChartLoader: ObservableObject {
             image = nil
             didFail = true
         }
-    }
-
-    nonisolated private static func makeSession() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.urlCache = nil
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpCookieStorage = nil
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.httpShouldSetCookies = false
-        configuration.urlCredentialStorage = nil
-        configuration.waitsForConnectivity = false
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 30
-        return URLSession(configuration: configuration)
     }
 
     private func makeURL(code: String) throws -> URL {

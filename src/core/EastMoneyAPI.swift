@@ -29,8 +29,8 @@ enum EastMoneyAPIError: LocalizedError {
 struct EastMoneyAPI: EastMoneyAPIProtocol {
     private let session: URLSession
 
-    init(session: URLSession? = nil) {
-        self.session = session ?? Self.makeSession()
+    init(session: URLSession = .shared) {
+        self.session = session
     }
 
     func searchFunds(matching query: String) async throws -> [FundSearchItem] {
@@ -392,21 +392,6 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             return text
         }
         return String(decoding: data, as: UTF8.self)
-    }
-
-    private static func makeSession() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.urlCache = nil
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.httpCookieStorage = nil
-        configuration.httpCookieAcceptPolicy = .never
-        configuration.httpShouldSetCookies = false
-        configuration.urlCredentialStorage = nil
-        configuration.connectionProxyDictionary = [:]
-        configuration.waitsForConnectivity = false
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 30
-        return URLSession(configuration: configuration)
     }
 
     private func performRequest(_ url: URL) async throws -> (Data, HTTPURLResponse) {
