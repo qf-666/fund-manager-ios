@@ -340,8 +340,8 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
 
     private func string(_ value: Any?) -> String? {
         switch value {
-        case let string as String:
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        case let string as NSString:
+            let trimmed = String(string).trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty || trimmed == "--" ? nil : trimmed
         case let number as NSNumber:
             return number.stringValue
@@ -354,8 +354,8 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         switch value {
         case let number as NSNumber:
             return number.doubleValue
-        case let string as String:
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        case let string as NSString:
+            let trimmed = String(string).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, trimmed != "--" else { return nil }
             return Double(trimmed.replacingOccurrences(of: ",", with: ""))
         default:
