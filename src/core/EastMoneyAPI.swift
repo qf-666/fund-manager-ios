@@ -18,11 +18,11 @@ enum EastMoneyAPIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL(let raw):
-            return "无效的接口地址：\(raw)"
+            return "????????\(raw)"
         case .invalidResponse:
-            return "接口返回状态异常。"
+            return "?????????"
         case .invalidPayload(let message):
-            return "接口数据格式异常：\(message)"
+            return "?????????\(message)"
         }
     }
 }
@@ -35,18 +35,18 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func searchFunds(matching query: String) async throws -> [FundSearchItem] {
-        let url = try makeURL(
-            host: "fundsuggest.eastmoney.com",
-            path: "/FundSearch/api/FundSearchAPI.ashx",
-            queryItems: [
-                URLQueryItem(name: "m", value: "9"),
-                URLQueryItem(name: "key", value: query)
-            ]
-        )
+        var components = URLComponents(string: "https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx")
+        components?.queryItems = [
+            URLQueryItem(name: "m", value: "9"),
+            URLQueryItem(name: "key", value: query)
+        ]
+        guard let url = components?.url else {
+            throw EastMoneyAPIError.invalidURL("fund search")
+        }
 
         let object = try await request(url)
         guard let root = object as? [String: Any], let items = root["Datas"] as? [[String: Any]] else {
-            throw EastMoneyAPIError.invalidPayload("搜索结果缺少 Datas")
+            throw EastMoneyAPIError.invalidPayload("?????? Datas")
         }
 
         return items.compactMap { item in
@@ -57,32 +57,22 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
                 code: code,
                 name: name,
                 pinyin: string(item["JP"]) ?? "",
-                category: string(item["CATEGORYDESC"]) ?? string(item["CATEGORY"]) ?? "基金"
+                category: string(item["CATEGORYDESC"]) ?? string(item["CATEGORY"]) ?? "??"
             )
         }
     }
 
     func fetchSnapshots(codes: [String], deviceId: String) async throws -> [RemoteFundSnapshot] {
-        let joinedCodes = joinedCodes(from: codes)
-        guard !joinedCodes.isEmpty else { return [] }
-        let url = try makeURL(
-            host: "fundmobapi.eastmoney.com",
-            path: "/FundMNewApi/FundMNFInfo",
-            queryItems: [
-                URLQueryItem(name: "pageIndex", value: "1"),
-                URLQueryItem(name: "pageSize", value: "200"),
-                URLQueryItem(name: "plat", value: "Android"),
-                URLQueryItem(name: "appType", value: "ttjj"),
-                URLQueryItem(name: "product", value: "EFund"),
-                URLQueryItem(name: "Version", value: "1"),
-                URLQueryItem(name: "deviceid", value: normalizedQueryValue(deviceId)),
-                URLQueryItem(name: "Fcodes", value: joinedCodes)
-            ]
-        )
+        guard !codes.isEmpty else { return [] }
+        let joined = codes.joined(separator: ",")
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMNewApi/FundMNFInfo?pageIndex=1&pageSize=200&plat=Android&appType=ttjj&product=EFund&Version=1&deviceid=\(deviceId)&Fcodes=\(joined)"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let object = try await request(url)
         guard let root = object as? [String: Any], let items = root["Datas"] as? [[String: Any]] else {
-            throw EastMoneyAPIError.invalidPayload("基金快照缺少 Datas")
+            throw EastMoneyAPIError.invalidPayload("?????? Datas")
         }
 
         let expansion = root["Expansion"] as? [String: Any]
@@ -109,15 +99,10 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchIndices() async throws -> [MarketIndexItem] {
-        let url = try makeURL(
-            host: "push2.eastmoney.com",
-            path: "/api/qt/ulist.np/get",
-            queryItems: [
-                URLQueryItem(name: "fltt", value: "2"),
-                URLQueryItem(name: "fields", value: "f2,f3,f4,f12,f13,f14"),
-                URLQueryItem(name: "secids", value: "1.000001,1.000300,0.399001,0.399006")
-            ]
-        )
+        let rawURL = "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f12,f13,f14&secids=1.000001,1.000300,0.399001,0.399006"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let object = try await request(url)
         guard
@@ -125,7 +110,7 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             let data = root["data"] as? [String: Any],
             let diff = data["diff"] as? [[String: Any]]
         else {
-            throw EastMoneyAPIError.invalidPayload("指数行情缺少 data.diff")
+            throw EastMoneyAPIError.invalidPayload("?????? data.diff")
         }
 
         let preferredOrder = ["000001", "000300", "399001", "399006"]
@@ -148,21 +133,14 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchProfile(code: String) async throws -> FundProfile {
-        let url = try makeURL(
-            host: "fundmobapi.eastmoney.com",
-            path: "/FundMApi/FundBaseTypeInformation.ashx",
-            queryItems: [
-                URLQueryItem(name: "FCODE", value: normalizedQueryValue(code)),
-                URLQueryItem(name: "deviceid", value: "Wap"),
-                URLQueryItem(name: "plat", value: "Wap"),
-                URLQueryItem(name: "product", value: "EFund"),
-                URLQueryItem(name: "version", value: "2.0.0")
-            ]
-        )
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMApi/FundBaseTypeInformation.ashx?FCODE=\(code)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let object = try await request(url)
         guard let root = object as? [String: Any], let data = root["Datas"] as? [String: Any] else {
-            throw EastMoneyAPIError.invalidPayload("基金详情缺少 Datas")
+            throw EastMoneyAPIError.invalidPayload("?????? Datas")
         }
 
         return FundProfile(
@@ -190,22 +168,14 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchNetValueSeries(code: String, range: ChartRange) async throws -> [NAVPoint] {
-        let url = try makeURL(
-            host: "fundmobapi.eastmoney.com",
-            path: "/FundMApi/FundNetDiagram.ashx",
-            queryItems: [
-                URLQueryItem(name: "FCODE", value: normalizedQueryValue(code)),
-                URLQueryItem(name: "RANGE", value: range.rawValue),
-                URLQueryItem(name: "deviceid", value: "Wap"),
-                URLQueryItem(name: "plat", value: "Wap"),
-                URLQueryItem(name: "product", value: "EFund"),
-                URLQueryItem(name: "version", value: "2.0.0")
-            ]
-        )
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMApi/FundNetDiagram.ashx?FCODE=\(code)&RANGE=\(range.rawValue)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let object = try await request(url)
         guard let root = object as? [String: Any], let rows = root["Datas"] as? [[String: Any]] else {
-            throw EastMoneyAPIError.invalidPayload("净值曲线缺少 Datas")
+            throw EastMoneyAPIError.invalidPayload("?????? Datas")
         }
 
         return rows.compactMap { row in
@@ -227,21 +197,14 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchValuationTrend(code: String) async throws -> FundValuationTrend? {
-        let url = try makeURL(
-            host: "fundmobapi.eastmoney.com",
-            path: "/FundMApi/FundVarietieValuationDetail.ashx",
-            queryItems: [
-                URLQueryItem(name: "FCODE", value: normalizedQueryValue(code)),
-                URLQueryItem(name: "deviceid", value: "Wap"),
-                URLQueryItem(name: "plat", value: "Wap"),
-                URLQueryItem(name: "product", value: "EFund"),
-                URLQueryItem(name: "version", value: "2.0.0")
-            ]
-        )
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMApi/FundVarietieValuationDetail.ashx?FCODE=\(code)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let object = try await request(url)
         guard let root = object as? [String: Any] else {
-            throw EastMoneyAPIError.invalidPayload("估值曲线返回为空")
+            throw EastMoneyAPIError.invalidPayload("????????")
         }
 
         guard
@@ -270,21 +233,14 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchPositionSnapshot(code: String) async throws -> FundPositionSnapshot {
-        let url = try makeURL(
-            host: "fundmobapi.eastmoney.com",
-            path: "/FundMNewApi/FundMNInverstPosition",
-            queryItems: [
-                URLQueryItem(name: "FCODE", value: normalizedQueryValue(code)),
-                URLQueryItem(name: "deviceid", value: "Wap"),
-                URLQueryItem(name: "plat", value: "Wap"),
-                URLQueryItem(name: "product", value: "EFund"),
-                URLQueryItem(name: "version", value: "2.0.0")
-            ]
-        )
+        let rawURL = "https://fundmobapi.eastmoney.com/FundMNewApi/FundMNInverstPosition?FCODE=\(code)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let object = try await request(url)
         guard let root = object as? [String: Any], let data = root["Datas"] as? [String: Any] else {
-            throw EastMoneyAPIError.invalidPayload("持仓明细缺少 Datas")
+            throw EastMoneyAPIError.invalidPayload("?????? Datas")
         }
 
         let stocks = data["fundStocks"] as? [[String: Any]] ?? []
@@ -302,19 +258,8 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
 
         var quotesByCode: [String: [String: Any]] = [:]
         if !secIDs.isEmpty {
-            if let quoteURL = try? makeURL(
-                host: "push2.eastmoney.com",
-                path: "/api/qt/ulist.np/get",
-                queryItems: [
-                    URLQueryItem(name: "fields", value: "f2,f3,f4,f12,f13,f14,f292"),
-                    URLQueryItem(name: "fltt", value: "2"),
-                    URLQueryItem(name: "secids", value: secIDs),
-                    URLQueryItem(name: "deviceid", value: "Wap"),
-                    URLQueryItem(name: "plat", value: "Wap"),
-                    URLQueryItem(name: "product", value: "EFund"),
-                    URLQueryItem(name: "version", value: "2.0.0")
-                ]
-            ) {
+            let quoteURLString = "https://push2.eastmoney.com/api/qt/ulist.np/get?fields=f2,f3,f4,f12,f13,f14,f292&fltt=2&secids=\(secIDs)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+            if let quoteURL = URL(string: quoteURLString) {
                 if let quoteObject = try? await request(quoteURL),
                    let quoteRoot = quoteObject as? [String: Any],
                    let quoteData = quoteRoot["data"] as? [String: Any],
@@ -363,14 +308,12 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         return estimates
     }
 
-    // fallback source kept aligned with plugin: https://fundgz.1234567.com.cn/js/{code}.js
     private func fetchEstimate(code: String) async throws -> FundEstimateSnapshot? {
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-        let url = try makeURL(
-            host: "fundgz.1234567.com.cn",
-            path: "/js/\(normalizedPathSegment(code)).js",
-            queryItems: [URLQueryItem(name: "rt", value: String(timestamp))]
-        )
+        let rawURL = "https://fundgz.1234567.com.cn/js/\(code).js?rt=\(timestamp)"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
 
         let body = try await requestText(url)
         guard
@@ -425,48 +368,17 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     private func makeRequest(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
-        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
             forHTTPHeaderField: "User-Agent"
         )
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         return request
-    }
-
-    private func makeURL(host: String, path: String, queryItems: [URLQueryItem]) throws -> URL {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = host
-        components.path = path
-        components.queryItems = queryItems
-        guard let url = components.url else {
-            throw EastMoneyAPIError.invalidURL("https://\(host)\(path)")
-        }
-        return url
-    }
-
-    private func joinedCodes(from codes: [String]) -> String {
-        codes
-            .map(normalizedQueryValue)
-            .filter { !$0.isEmpty }
-            .joined(separator: ",")
-    }
-
-    private func normalizedQueryValue(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func normalizedPathSegment(_ value: String) -> String {
-        normalizedQueryValue(value)
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .joined()
     }
 
     private func string(_ value: Any?) -> String? {
         switch value {
-        case let string as NSString:
-            let trimmed = String(string).trimmingCharacters(in: .whitespacesAndNewlines)
+        case let string as String:
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty || trimmed == "--" ? nil : trimmed
         case let number as NSNumber:
             return number.stringValue
@@ -479,8 +391,8 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         switch value {
         case let number as NSNumber:
             return number.doubleValue
-        case let string as NSString:
-            let trimmed = String(string).trimmingCharacters(in: .whitespacesAndNewlines)
+        case let string as String:
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, trimmed != "--" else { return nil }
             return Double(trimmed.replacingOccurrences(of: ",", with: ""))
         default:

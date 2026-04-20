@@ -14,38 +14,52 @@ def main() -> int:
     errors: list[str] = []
 
     detail_view = read("src/zhihu/FundDetailView.swift")
+    api = read("src/core/EastMoneyAPI.swift")
+    view_model = read("src/core/AppViewModel.swift")
 
-    required_tokens = [
-        "AsyncImage(url: valuationChartImageURL(for: holding.code))",
-        "https://bronze-fire.exe.xyz/fund-manager-ios/valuation-png/",
-        "valuationChartImageURL(for code: String)",
-        "Task { await valuationChartLoader.load(code: holding.code, force: true) }",
-    ]
+    required_checks = {
+        "FundDetailView.swift": [
+            "Chart(valuationTrend.points)",
+        ],
+        "EastMoneyAPI.swift": [
+            "func fetchValuationTrend(code: String) async throws -> FundValuationTrend?",
+            "FundVarietieValuationDetail.ashx",
+        ],
+        "AppViewModel.swift": [
+            "func loadValuationTrend(for code: String) async -> FundValuationTrend?",
+        ],
+    }
 
-    for token in required_tokens:
-        if token not in detail_view:
-            errors.append(f"FundDetailView.swift missing {token}")
+    sources = {
+        "FundDetailView.swift": detail_view,
+        "EastMoneyAPI.swift": api,
+        "AppViewModel.swift": view_model,
+    }
+
+    for file_name, tokens in required_checks.items():
+        content = sources[file_name]
+        for token in tokens:
+            if token not in content:
+                errors.append(f"{file_name} missing {token}")
 
     forbidden_tokens = [
+        "AsyncImage(url: valuationChartImageURL(for: holding.code))",
+        "https://bronze-fire.exe.xyz/fund-manager-ios/valuation-png/",
         "https://j4.dfcfw.com/charts/pic6/",
+        "valuationChartImageURL(for code: String)",
     ]
 
     for token in forbidden_tokens:
         if token in detail_view:
             errors.append(f"FundDetailView.swift should not contain {token}")
 
-    auto_load_snippet = """.task(id: holding.code) {
-            await valuationChartLoader.load(code: holding.code)"""
-    if auto_load_snippet in detail_view:
-        errors.append("FundDetailView.swift should not auto-load valuation PNG on enter")
-
     if errors:
-        print("Valuation PNG source check failed:")
+        print("Valuation chart source check failed:")
         for item in errors:
             print(f"- {item}")
         return 1
 
-    print("Valuation PNG source check passed.")
+    print("Valuation chart source check passed.")
     return 0
 
 
