@@ -75,7 +75,7 @@ private final class ValuationChartLoader: ObservableObject {
         }
     }
 
-    private static func makeSession() -> URLSession {
+    nonisolated private static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -604,7 +604,7 @@ struct FundDetailView: View {
     }
 
     private func valuationChartImageURL(for code: String) -> URL? {
-        var components = URLComponents(string: "https://j4.dfcfw.com/charts/pic6/\(code).png")
+        let components = URLComponents(string: "https://j4.dfcfw.com/charts/pic6/\(code).png")
         return components?.url
     }
 
