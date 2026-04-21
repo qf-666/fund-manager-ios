@@ -108,7 +108,7 @@ final class FundValuationChartLoader: ObservableObject {
         return request
     }
 
-    private static func makeSession() -> URLSession {
+    nonisolated private static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
