@@ -17,23 +17,33 @@ def main() -> int:
     api = read("src/core/EastMoneyAPI.swift")
     view_model = read("src/core/AppViewModel.swift")
 
-    required_checks = {
-        "FundDetailView.swift": [
-            "AsyncImage(url: valuationChartImageURL(for: holding.code))",
-            "valuationChartImageURL(for code: String)",
-            "https://j4.dfcfw.com/charts/pic6/",
-        ],
-    }
+    tokens = [
+        "AsyncImage(url: valuationChartImageURL(for: holding.code))",
+        "valuationChartImageURL(for code: String)",
+        "https://j4.dfcfw.com/charts/pic6/",
+        "supportsDirectValuationPNG",
+    ]
 
-    sources = {
-        "FundDetailView.swift": detail_view,
-    }
+    for token in tokens:
+        if token not in detail_view:
+            errors.append(f"FundDetailView.swift missing {token}")
 
-    for file_name, tokens in required_checks.items():
-        content = sources[file_name]
-        for token in tokens:
-            if token not in content:
-                errors.append(f"{file_name} missing {token}")
+    forbidden_auto_loads = [
+        "if selectedTab == .valuation {\n                        valuationChartLoader.load(code: holding.code)",
+        "if selectedTab == .valuation {\n                        valuationChartLoader.load(code: newCode)",
+        "if newTab == .valuation {\n                        valuationChartLoader.load(code: holding.code)",
+    ]
+    for token in forbidden_auto_loads:
+        if token in detail_view:
+            errors.append("FundDetailView.swift should not auto-load valuation PNG on iOS 16.3")
+
+    required_manual_tokens = [
+        'Label(valuationChartLoader.didFail ? "重新加载估值图" : "手动加载估值图"',
+        "当前设备处于 iOS 16.3 及以下。为避免进入详情页时自动请求再次触发闪退，这里改为仅在你手动点击后再加载净值估算图。",
+    ]
+    for token in required_manual_tokens:
+        if token not in detail_view:
+            errors.append(f"FundDetailView.swift missing {token}")
 
     forbidden_tokens = [
         "Chart(valuationTrend.points)",

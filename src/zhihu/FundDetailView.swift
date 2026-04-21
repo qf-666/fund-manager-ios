@@ -43,6 +43,23 @@ struct FundDetailView: View {
         return viewModel.quote(for: holding.code)
     }
 
+    private var supportsDirectValuationPNG: Bool {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        if version.majorVersion > 16 {
+            return true
+        }
+        if version.majorVersion < 16 {
+            return false
+        }
+        if version.minorVersion > 3 {
+            return true
+        }
+        if version.minorVersion < 3 {
+            return false
+        }
+        return version.patchVersion > 0
+    }
+
     private var cumulativeSeries: [CumulativeReturnPoint] {
         guard let first = detailLoader.series.first else { return [] }
         let baseUnit = first.unitValue
@@ -87,7 +104,7 @@ struct FundDetailView: View {
                         didSuspendAutoRefresh = true
                     }
                     detailLoader.load(code: holding.code, range: selectedRange, viewModel: viewModel)
-                    if selectedTab == .valuation {
+                    if selectedTab == .valuation, supportsDirectValuationPNG {
                         valuationChartLoader.load(code: holding.code)
                     }
                 }
@@ -101,7 +118,7 @@ struct FundDetailView: View {
                 .onChange(of: holding.code) { newCode in
                     detailLoader.load(code: newCode, range: selectedRange, viewModel: viewModel)
                     valuationChartLoader.reset()
-                    if selectedTab == .valuation {
+                    if selectedTab == .valuation, supportsDirectValuationPNG {
                         valuationChartLoader.load(code: newCode)
                     }
                 }
@@ -109,7 +126,7 @@ struct FundDetailView: View {
                     detailLoader.reloadSeries(code: holding.code, range: selectedRange, viewModel: viewModel)
                 }
                 .onChange(of: selectedTab) { newTab in
-                    if newTab == .valuation {
+                    if newTab == .valuation, supportsDirectValuationPNG {
                         valuationChartLoader.load(code: holding.code)
                     } else {
                         valuationChartLoader.cancel()
@@ -229,7 +246,15 @@ struct FundDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text(valuationChartLoader.didFail ? "当前未能拉取东方财富净值估算图，可点击重试。" : "净值估算图已恢复为受控加载模式。")
+                            Text(
+                                valuationChartLoader.didFail
+                                    ? "当前未能拉取东方财富净值估算图，可点击重试。"
+                                    : (
+                                        supportsDirectValuationPNG
+                                            ? "净值估算图已恢复为受控加载模式。"
+                                            : "当前设备处于 iOS 16.3 及以下。为避免进入详情页时自动请求再次触发闪退，这里改为仅在你手动点击后再加载净值估算图。"
+                                    )
+                            )
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
 
@@ -238,7 +263,7 @@ struct FundDetailView: View {
                             Button {
                                 valuationChartLoader.load(code: holding.code, force: true)
                             } label: {
-                                Label(valuationChartLoader.didFail ? "重新加载估值图" : "刷新估值图", systemImage: "arrow.clockwise")
+                                Label(valuationChartLoader.didFail ? "重新加载估值图" : "手动加载估值图", systemImage: "arrow.clockwise")
                                     .font(.subheadline.weight(.semibold))
                             }
                             .buttonStyle(.borderedProminent)

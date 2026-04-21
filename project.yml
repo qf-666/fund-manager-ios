@@ -5,8 +5,8 @@ settings:
   base:
     SWIFT_VERSION: 5.9
     IPHONEOS_DEPLOYMENT_TARGET: 16.0
-    MARKETING_VERSION: 1.0.21
-    CURRENT_PROJECT_VERSION: 21
+    MARKETING_VERSION: 1.0.22
+    CURRENT_PROJECT_VERSION: 22
     PRODUCT_BUNDLE_IDENTIFIER: io.github.qf666.zhihufunds
     PRODUCT_NAME: ZhihuFunds
     TARGETED_DEVICE_FAMILY: 1,2
@@ -35,7 +35,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         LSRequiresIPhoneOS: true
-        CFBundleShortVersionString: 1.0.21
-        CFBundleVersion: 21
+        CFBundleShortVersionString: 1.0.22
+        CFBundleVersion: 22
     scheme:
       gatherCoverageData: false
