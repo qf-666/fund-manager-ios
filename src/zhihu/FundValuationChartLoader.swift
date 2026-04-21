@@ -1,6 +1,32 @@
 import Foundation
 import UIKit
 
+enum FundValuationChartEndpoint {
+    private static let proxyBaseURL = URL(string: "https://bronze-fire.exe.xyz")!
+
+    static func url(for code: String, cacheSeed: String? = nil) -> URL? {
+        let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCode.isEmpty else { return nil }
+
+        let baseURL = proxyBaseURL
+            .appendingPathComponent("fund-manager-ios", isDirectory: true)
+            .appendingPathComponent("valuation-png", isDirectory: true)
+            .appendingPathComponent("\(trimmedCode).png", isDirectory: false)
+
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return baseURL
+        }
+
+        if let cacheSeed, !cacheSeed.isEmpty {
+            components.queryItems = [
+                URLQueryItem(name: "t", value: cacheSeed)
+            ]
+        }
+
+        return components.url
+    }
+}
+
 @MainActor
 final class FundValuationChartLoader: ObservableObject {
     @Published private(set) var image: UIImage?
@@ -90,15 +116,8 @@ final class FundValuationChartLoader: ObservableObject {
     }
 
     private func makeRequest(code: String) throws -> URLRequest {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "j4.dfcfw.com"
-        components.path = "/charts/pic6/\(code).png"
-        components.queryItems = [
-            URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970)))
-        ]
-
-        guard let url = components.url else {
+        let cacheSeed = String(Int(Date().timeIntervalSince1970))
+        guard let url = FundValuationChartEndpoint.url(for: code, cacheSeed: cacheSeed) else {
             throw URLError(.badURL)
         }
 

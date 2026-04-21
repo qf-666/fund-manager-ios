@@ -20,7 +20,7 @@ def main() -> int:
     tokens = [
         "AsyncImage(url: valuationChartImageURL(for: holding.code))",
         "valuationChartImageURL(for code: String)",
-        "https://j4.dfcfw.com/charts/pic6/",
+        "FundValuationChartEndpoint.url(for: trimmedCode, cacheSeed: cacheSeed)",
         "supportsDirectValuationPNG",
     ]
 

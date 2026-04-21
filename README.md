@@ -15,6 +15,7 @@
 - 设置页可配置自动刷新频率（默认 10 秒）
 - GitHub Actions 自动构建无签名 `.ipa`
 - Tag 推送后自动创建 GitHub Release 并附带构建产物
+- 估值 PNG 现通过代理缓存地址分发，避免 iOS 16.3 直连 `j4.dfcfw.com` 时的兼容性崩溃
 
 ## 技术栈
 
@@ -66,7 +67,7 @@ open ZhihuFunds.xcodeproj
   - `ZhihuFunds-emerald-fixed.ipa`
 - 自动上传为 Actions artifact
 
-### Push Tag（如 `v1.0.22`）
+### Push Tag（如 `v1.0.23`）
 - 自动执行构建
 - 自动创建 GitHub Release
 - 自动把全部 `.ipa` 挂到 Release 附件
@@ -77,9 +78,10 @@ open ZhihuFunds.xcodeproj
 - 基金搜索：`fundsuggest.eastmoney.com`
 - 基金净值与基础信息：`fundmobapi.eastmoney.com`
 - 指数行情：`push2.eastmoney.com`
+- 估值 PNG 代理：`bronze-fire.exe.xyz/fund-manager-ios/valuation-png/<基金代码>.png`
 
 这适合快速验证产品，但如果后续要上架、做长期稳定版本，建议增加自有后端做缓存和容错。
 
 ## 版本
 
-当前默认版本：`v1.0.22`
+当前默认版本：`v1.0.23`

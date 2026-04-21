@@ -23,13 +23,14 @@ def main() -> int:
         'valuationChartLoader.cancel()',
         'valuationChartLoader.reset()',
         'Image(uiImage: image)',
-        'https://j4.dfcfw.com/charts/pic6/',
+        'FundValuationChartEndpoint.url(for: trimmedCode, cacheSeed: cacheSeed)',
     ]
     for token in required_detail_tokens:
         if token not in detail_view:
             errors.append(f'FundDetailView.swift missing {token}')
 
     required_loader_tokens = [
+        'enum FundValuationChartEndpoint',
         'final class FundValuationChartLoader: ObservableObject',
         '@Published private(set) var image: UIImage?',
         'private var loadTask: Task<Void, Never>?',
@@ -40,8 +41,10 @@ def main() -> int:
         'func reset()',
         'configuration.urlCache = nil',
         'configuration.requestCachePolicy = .reloadIgnoringLocalCacheData',
-        'components.host = "j4.dfcfw.com"',
-        'components.path = "/charts/pic6/\\(code).png"',
+        'https://bronze-fire.exe.xyz',
+        'appendingPathComponent("fund-manager-ios", isDirectory: true)',
+        'appendingPathComponent("valuation-png", isDirectory: true)',
+        'FundValuationChartEndpoint.url(for: code, cacheSeed: cacheSeed)',
     ]
     for token in required_loader_tokens:
         if token not in png_loader:

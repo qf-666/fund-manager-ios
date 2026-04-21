@@ -217,7 +217,7 @@ struct FundDetailView: View {
 
     private func valuationSection(for holding: StoredHolding) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            cardContainer(title: "净值估算图", subtitle: "东方财富 pic6 PNG") {
+            cardContainer(title: "净值估算图", subtitle: "代理 PNG（缓存）") {
                 VStack(alignment: .leading, spacing: 12) {
                     // Legacy reference for audit script:
                     // AsyncImage(url: valuationChartImageURL(for: holding.code))
@@ -288,7 +288,7 @@ struct FundDetailView: View {
                             .foregroundStyle(.tertiary)
                             .textSelection(.enabled)
                     } else {
-                        Text("图片源：东方财富 pic6 实时 PNG。")
+                        Text("图片源：代理缓存 PNG（上游为东方财富 pic6）。")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
@@ -574,7 +574,7 @@ struct FundDetailView: View {
             cacheSeed = trimmedCode
         }
 
-        return URL(string: "https://j4.dfcfw.com/charts/pic6/\(trimmedCode).png?t=\(cacheSeed)")
+        return FundValuationChartEndpoint.url(for: trimmedCode, cacheSeed: cacheSeed)
     }
 
     private var displayPriceText: String {
