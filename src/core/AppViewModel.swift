@@ -17,6 +17,7 @@ final class AppViewModel: ObservableObject {
     private let store: PersistenceStore
     private var hasBootstrapped = false
     private var hasHandledInitialActivePhase = false
+    private var autoRefreshSuspendCount = 0
     private var autoRefreshTask: Task<Void, Never>?
     private var autoRefreshAllowed = false
 
@@ -83,7 +84,7 @@ final class AppViewModel: ObservableObject {
 
     func startAutoRefresh() {
         autoRefreshAllowed = true
-        guard autoRefreshTask == nil, autoRefreshInterval > 0 else { return }
+        guard autoRefreshSuspendCount == 0, autoRefreshTask == nil, autoRefreshInterval > 0 else { return }
 
         autoRefreshTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -100,6 +101,25 @@ final class AppViewModel: ObservableObject {
         autoRefreshAllowed = false
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
+    }
+
+    func suspendAutoRefresh() {
+        autoRefreshSuspendCount += 1
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+    }
+
+    func resumeAutoRefresh(refreshNow: Bool = false) {
+        guard autoRefreshSuspendCount > 0 else { return }
+        autoRefreshSuspendCount -= 1
+        guard autoRefreshSuspendCount == 0 else { return }
+        guard autoRefreshAllowed else { return }
+
+        startAutoRefresh()
+
+        if refreshNow {
+            Task { await refreshAll(force: true) }
+        }
     }
 
     func setAutoRefreshInterval(_ seconds: Int) {

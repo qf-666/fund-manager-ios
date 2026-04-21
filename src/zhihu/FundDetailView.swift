@@ -36,6 +36,7 @@ struct FundDetailView: View {
     @State private var positionSnapshot: FundPositionSnapshot?
     @State private var isLoadingOverview = false
     @State private var isLoadingSeries = false
+    @State private var didSuspendAutoRefresh = false
     @State private var editingHolding: StoredHolding?
 
     private var holding: StoredHolding? {
@@ -87,6 +88,16 @@ struct FundDetailView: View {
                 }
                 .task(id: holding.code) {
                     await loadInitialData(for: holding.code)
+                }
+                .onAppear {
+                    guard !didSuspendAutoRefresh else { return }
+                    viewModel.suspendAutoRefresh()
+                    didSuspendAutoRefresh = true
+                }
+                .onDisappear {
+                    guard didSuspendAutoRefresh else { return }
+                    viewModel.resumeAutoRefresh(refreshNow: true)
+                    didSuspendAutoRefresh = false
                 }
                 .onChange(of: selectedRange) { _ in
                     Task { await loadSeries(for: holding.code) }
@@ -554,6 +565,11 @@ struct FundDetailView: View {
         isLoadingOverview = true
         isLoadingSeries = true
 
+        defer {
+            isLoadingOverview = false
+            isLoadingSeries = false
+        }
+
         if let cachedTrend = viewModel.cachedValuationTrend(for: code) {
             valuationTrend = cachedTrend.trend
             valuationTrendSavedAt = cachedTrend.savedAt
@@ -563,10 +579,6 @@ struct FundDetailView: View {
             valuationTrendSavedAt = nil
             usingCachedValuationTrend = false
         }
-
-        async let profileTask = viewModel.loadProfile(for: code)
-        async let positionsTask = viewModel.loadPositionSnapshot(for: code)
-        async let seriesTask = viewModel.loadNetValueSeries(for: code, range: selectedRange)
 
         if let freshTrend = await viewModel.loadValuationTrend(for: code) {
             valuationTrend = freshTrend
@@ -583,12 +595,9 @@ struct FundDetailView: View {
             usingCachedValuationTrend = false
         }
 
-        profile = await profileTask
-        positionSnapshot = await positionsTask
-        series = await seriesTask
-
-        isLoadingOverview = false
-        isLoadingSeries = false
+        profile = await viewModel.loadProfile(for: code)
+        positionSnapshot = await viewModel.loadPositionSnapshot(for: code)
+        series = await viewModel.loadNetValueSeries(for: code, range: selectedRange)
     }
 
     private func loadSeries(for code: String) async {
