@@ -26,13 +26,9 @@ struct FundDetailView: View {
 
     let holdingID: UUID
 
+    @StateObject private var detailLoader = FundDetailLoader()
     @State private var selectedTab: FundDetailTab = .valuation
     @State private var selectedRange: ChartRange = .month
-    @State private var series: [NAVPoint] = []
-    @State private var profile: FundProfile?
-    @State private var positionSnapshot: FundPositionSnapshot?
-    @State private var isLoadingOverview = false
-    @State private var isLoadingSeries = false
     @State private var didSuspendAutoRefresh = false
     @State private var editingHolding: StoredHolding?
 
@@ -46,11 +42,11 @@ struct FundDetailView: View {
     }
 
     private var cumulativeSeries: [CumulativeReturnPoint] {
-        guard let first = series.first else { return [] }
+        guard let first = detailLoader.series.first else { return [] }
         let baseUnit = first.unitValue
         let baseAccumulated = first.accumulatedValue
 
-        return series.map { point in
+        return detailLoader.series.map { point in
             let fundReturn = ((point.unitValue / baseUnit) - 1) * 100
             let accumulatedReturn: Double?
             if let baseAccumulated, let current = point.accumulatedValue, baseAccumulated != 0 {
@@ -83,21 +79,24 @@ struct FundDetailView: View {
                         }
                     }
                 }
-                .task(id: holding.code) {
-                    await loadInitialData(for: holding.code)
-                }
                 .onAppear {
-                    guard !didSuspendAutoRefresh else { return }
-                    viewModel.suspendAutoRefresh()
-                    didSuspendAutoRefresh = true
+                    if !didSuspendAutoRefresh {
+                        viewModel.suspendAutoRefresh()
+                        didSuspendAutoRefresh = true
+                    }
+                    detailLoader.load(code: holding.code, range: selectedRange, viewModel: viewModel)
                 }
                 .onDisappear {
+                    detailLoader.cancelAll()
                     guard didSuspendAutoRefresh else { return }
-                    viewModel.resumeAutoRefresh(refreshNow: true)
+                    viewModel.resumeAutoRefresh(refreshNow: false)
                     didSuspendAutoRefresh = false
                 }
+                .onChange(of: holding.code) { newCode in
+                    detailLoader.load(code: newCode, range: selectedRange, viewModel: viewModel)
+                }
                 .onChange(of: selectedRange) { _ in
-                    Task { await loadSeries(for: holding.code) }
+                    detailLoader.reloadSeries(code: holding.code, range: selectedRange, viewModel: viewModel)
                 }
                 .sheet(item: $editingHolding) { draft in
                     EditHoldingSheet(holding: draft) { updated in
@@ -121,7 +120,7 @@ struct FundDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(DisplayFormatter.monthDayOrTime(quote?.displayTimestamp ?? profile?.unitNAVDate))
+                Text(DisplayFormatter.monthDayOrTime(quote?.displayTimestamp ?? detailLoader.profile?.unitNAVDate))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -208,9 +207,9 @@ struct FundDetailView: View {
     }
     private var positionsSection: some View {
         Group {
-            if isLoadingOverview && positionSnapshot == nil {
+            if detailLoader.isLoadingOverview && detailLoader.positionSnapshot == nil {
                 loadingCard("加载持仓明细中…")
-            } else if let positionSnapshot, !positionSnapshot.holdings.isEmpty {
+            } else if let positionSnapshot = detailLoader.positionSnapshot, !positionSnapshot.holdings.isEmpty {
                 cardContainer(title: "持仓明细", subtitle: positionSnapshot.asOfDate.map { "截止日期：\($0)" }) {
                     VStack(spacing: 0) {
                         ForEach(Array(positionSnapshot.holdings.enumerated()), id: \.element.id) { index, item in
@@ -251,9 +250,9 @@ struct FundDetailView: View {
         VStack(alignment: .leading, spacing: 14) {
             rangeSelector
 
-            if isLoadingSeries && series.isEmpty {
+            if detailLoader.isLoadingSeries && detailLoader.series.isEmpty {
                 loadingCard("加载历史净值中…")
-            } else if series.isEmpty {
+            } else if detailLoader.series.isEmpty {
                 EmptyStateView("暂无历史净值", systemImage: "chart.line.uptrend.xyaxis")
             } else {
                 cardContainer(title: "历史净值") {
@@ -263,7 +262,7 @@ struct FundDetailView: View {
                             ("累计净值", .red)
                         ])
 
-                        Chart(series) { point in
+                        Chart(detailLoader.series) { point in
                             LineMark(
                                 x: .value("日期", point.date),
                                 y: .value("单位净值", point.unitValue)
@@ -294,7 +293,7 @@ struct FundDetailView: View {
         VStack(alignment: .leading, spacing: 14) {
             rangeSelector
 
-            if isLoadingSeries && cumulativeSeries.isEmpty {
+            if detailLoader.isLoadingSeries && cumulativeSeries.isEmpty {
                 loadingCard("加载累计收益中…")
             } else if cumulativeSeries.isEmpty {
                 EmptyStateView("暂无累计收益数据", systemImage: "chart.xyaxis.line")
@@ -342,9 +341,9 @@ struct FundDetailView: View {
 
     private var profileSection: some View {
         Group {
-            if isLoadingOverview && profile == nil {
+            if detailLoader.isLoadingOverview && detailLoader.profile == nil {
                 loadingCard("加载基金概况中…")
-            } else if let profile {
+            } else if let profile = detailLoader.profile {
                 VStack(alignment: .leading, spacing: 14) {
                     let rankItems: [(String, Double?, String?)] = [
                         ("近1月", profile.oneMonthReturn, profile.oneMonthRank),
@@ -409,7 +408,7 @@ struct FundDetailView: View {
             HStack(spacing: 12) {
                 DetailMetric(title: "估算净值", value: displayPriceText)
                 DetailMetric(title: "涨跌幅", value: displayChangeText, tint: displayChangeColor)
-                DetailMetric(title: "更新时间", value: DisplayFormatter.monthDayOrTime(quote?.displayTimestamp ?? profile?.unitNAVDate))
+                DetailMetric(title: "更新时间", value: DisplayFormatter.monthDayOrTime(quote?.displayTimestamp ?? detailLoader.profile?.unitNAVDate))
             }
             HStack(spacing: 12) {
                 DetailMetric(title: "持有额", value: viewModel.marketValue(for: holding).map(DisplayFormatter.currency) ?? "--")
@@ -492,7 +491,7 @@ struct FundDetailView: View {
         let cacheSeed: String
         if let lastUpdated = viewModel.lastUpdated {
             cacheSeed = String(Int(lastUpdated.timeIntervalSince1970))
-        } else if let timestamp = quote?.displayTimestamp ?? profile?.unitNAVDate {
+        } else if let timestamp = quote?.displayTimestamp ?? detailLoader.profile?.unitNAVDate {
             let digits = timestamp.filter(\.isNumber)
             cacheSeed = digits.isEmpty ? trimmedCode : digits
         } else {
@@ -506,7 +505,7 @@ struct FundDetailView: View {
         if let price = quote?.displayPrice {
             return DisplayFormatter.price(price)
         }
-        if let nav = profile?.unitNAV {
+        if let nav = detailLoader.profile?.unitNAV {
             return DisplayFormatter.price(nav)
         }
         return "--"
@@ -516,7 +515,7 @@ struct FundDetailView: View {
         if let change = quote?.displayChangePercent {
             return DisplayFormatter.percent(change)
         }
-        if let change = series.last?.dailyChangePercent {
+        if let change = detailLoader.series.last?.dailyChangePercent {
             return DisplayFormatter.percent(change)
         }
         return "--"
@@ -526,7 +525,7 @@ struct FundDetailView: View {
         if let change = quote?.displayChangePercent {
             return change.trendColor
         }
-        if let change = series.last?.dailyChangePercent {
+        if let change = detailLoader.series.last?.dailyChangePercent {
             return change.trendColor
         }
         return .secondary
@@ -543,25 +542,6 @@ struct FundDetailView: View {
         return DisplayFormatter.plain(value, minimumFractionDigits: 2, maximumFractionDigits: 2)
     }
 
-    private func loadInitialData(for code: String) async {
-        isLoadingOverview = true
-        isLoadingSeries = true
-
-        defer {
-            isLoadingOverview = false
-            isLoadingSeries = false
-        }
-
-        profile = await viewModel.loadProfile(for: code)
-        positionSnapshot = await viewModel.loadPositionSnapshot(for: code)
-        series = await viewModel.loadNetValueSeries(for: code, range: selectedRange)
-    }
-
-    private func loadSeries(for code: String) async {
-        isLoadingSeries = true
-        series = await viewModel.loadNetValueSeries(for: code, range: selectedRange)
-        isLoadingSeries = false
-    }
 }
 
 private struct HeaderBadge: View {
