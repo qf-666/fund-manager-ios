@@ -184,51 +184,20 @@ struct FundDetailView: View {
 
     private func valuationSection(for holding: StoredHolding) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            cardContainer(title: "净值估算图", subtitle: "东方财富 PNG") {
+            cardContainer(title: "净值估算图", subtitle: "已临时关闭 PNG 加载") {
                 VStack(alignment: .leading, spacing: 12) {
-                    if let imageURL = valuationChartImageURL(for: holding.code) {
-                        AsyncImage(url: valuationChartImageURL(for: holding.code)) { phase in
-                            switch phase {
-                            case .empty:
-                                valuationImagePlaceholder(
-                                    title: "正在加载净值估算图…",
-                                    systemImage: "photo"
-                                )
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .interpolation(.high)
-                                    .antialiased(true)
-                                    .scaledToFit()
-                                    .frame(maxWidth: .infinity, minHeight: 180)
-                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            case .failure:
-                                valuationImagePlaceholder(
-                                    title: "估算图加载失败，先看下面摘要。",
-                                    systemImage: "exclamationmark.triangle"
-                                )
-                            @unknown default:
-                                valuationImagePlaceholder(
-                                    title: "当前暂时无法显示估算图。",
-                                    systemImage: "photo"
-                                )
-                            }
-                        }
-                        .id(imageURL.absoluteString)
+                    valuationImagePlaceholder(
+                        title: "已临时关闭详情页估算图加载，用于排查进入详情页闪退问题。",
+                        systemImage: "wrench.and.screwdriver"
+                    )
 
-                        HStack {
-                            Text("当前净值：\(displayPriceText)")
-                            Spacer()
-                            Text("涨跌幅：\(displayChangeText)")
-                                .foregroundStyle(displayChangeColor)
-                        }
-                        .font(.subheadline.weight(.medium))
-                    } else {
-                        valuationImagePlaceholder(
-                            title: "当前基金代码无效，无法拼接估算图地址。",
-                            systemImage: "xmark.octagon"
-                        )
+                    HStack {
+                        Text("当前净值：\(displayPriceText)")
+                        Spacer()
+                        Text("涨跌幅：\(displayChangeText)")
+                            .foregroundStyle(displayChangeColor)
                     }
+                    .font(.subheadline.weight(.medium))
                 }
             }
 
