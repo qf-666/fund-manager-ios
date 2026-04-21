@@ -44,11 +44,21 @@ def main() -> int:
         'https://bronze-fire.exe.xyz',
         'appendingPathComponent("fund-manager-ios", isDirectory: true)',
         'appendingPathComponent("valuation-png", isDirectory: true)',
+        'request.setValue(',
+        'forHTTPHeaderField: "User-Agent"',
         'FundValuationChartEndpoint.url(for: code, cacheSeed: cacheSeed)',
     ]
     for token in required_loader_tokens:
         if token not in png_loader:
             errors.append(f'FundValuationChartLoader.swift missing {token}')
+
+    forbidden_loader_tokens = [
+        'URLQueryItem(name: "t", value: cacheSeed)',
+        'components.queryItems = [',
+    ]
+    for token in forbidden_loader_tokens:
+        if token in png_loader:
+            errors.append(f'FundValuationChartLoader.swift should not contain {token}')
 
     if errors:
         print('Valuation PNG loader check failed:')

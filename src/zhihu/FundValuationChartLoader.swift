@@ -4,26 +4,14 @@ import UIKit
 enum FundValuationChartEndpoint {
     private static let proxyBaseURL = URL(string: "https://bronze-fire.exe.xyz")!
 
-    static func url(for code: String, cacheSeed: String? = nil) -> URL? {
+    static func url(for code: String, cacheSeed _: String? = nil) -> URL? {
         let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedCode.isEmpty else { return nil }
 
-        let baseURL = proxyBaseURL
+        return proxyBaseURL
             .appendingPathComponent("fund-manager-ios", isDirectory: true)
             .appendingPathComponent("valuation-png", isDirectory: true)
             .appendingPathComponent("\(trimmedCode).png", isDirectory: false)
-
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            return baseURL
-        }
-
-        if let cacheSeed, !cacheSeed.isEmpty {
-            components.queryItems = [
-                URLQueryItem(name: "t", value: cacheSeed)
-            ]
-        }
-
-        return components.url
     }
 }
 
@@ -124,6 +112,10 @@ final class FundValuationChartLoader: ObservableObject {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+            forHTTPHeaderField: "User-Agent"
+        )
         return request
     }
 
