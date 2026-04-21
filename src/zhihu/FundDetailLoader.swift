@@ -70,9 +70,10 @@ final class FundDetailLoader: ObservableObject {
             guard let self else { return }
 
             defer {
-                guard self.overviewGeneration == generation, self.activeCode == code else { return }
-                self.isLoadingOverview = false
-                self.overviewTask = nil
+                if self.overviewGeneration == generation, self.activeCode == code {
+                    self.isLoadingOverview = false
+                    self.overviewTask = nil
+                }
             }
 
             let profile = await viewModel.loadProfile(for: code)
@@ -95,9 +96,10 @@ final class FundDetailLoader: ObservableObject {
             guard let self else { return }
 
             defer {
-                guard self.seriesGeneration == generation, self.activeCode == code else { return }
-                self.isLoadingSeries = false
-                self.seriesTask = nil
+                if self.seriesGeneration == generation, self.activeCode == code {
+                    self.isLoadingSeries = false
+                    self.seriesTask = nil
+                }
             }
 
             let series = await viewModel.loadNetValueSeries(for: code, range: range)
