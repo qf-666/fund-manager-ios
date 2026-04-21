@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import UIKit
 
 private enum FundDetailTab: String, CaseIterable, Identifiable {
     case valuation = "净值估算"
@@ -27,6 +28,7 @@ struct FundDetailView: View {
     let holdingID: UUID
 
     @StateObject private var detailLoader = FundDetailLoader()
+    @StateObject private var valuationChartLoader = FundValuationChartLoader()
     @State private var selectedTab: FundDetailTab = .valuation
     @State private var selectedRange: ChartRange = .month
     @State private var didSuspendAutoRefresh = false
@@ -85,18 +87,33 @@ struct FundDetailView: View {
                         didSuspendAutoRefresh = true
                     }
                     detailLoader.load(code: holding.code, range: selectedRange, viewModel: viewModel)
+                    if selectedTab == .valuation {
+                        valuationChartLoader.load(code: holding.code)
+                    }
                 }
                 .onDisappear {
                     detailLoader.cancelAll()
+                    valuationChartLoader.cancel()
                     guard didSuspendAutoRefresh else { return }
                     viewModel.resumeAutoRefresh(refreshNow: false)
                     didSuspendAutoRefresh = false
                 }
                 .onChange(of: holding.code) { newCode in
                     detailLoader.load(code: newCode, range: selectedRange, viewModel: viewModel)
+                    valuationChartLoader.reset()
+                    if selectedTab == .valuation {
+                        valuationChartLoader.load(code: newCode)
+                    }
                 }
                 .onChange(of: selectedRange) { _ in
                     detailLoader.reloadSeries(code: holding.code, range: selectedRange, viewModel: viewModel)
+                }
+                .onChange(of: selectedTab) { newTab in
+                    if newTab == .valuation {
+                        valuationChartLoader.load(code: holding.code)
+                    } else {
+                        valuationChartLoader.cancel()
+                    }
                 }
                 .sheet(item: $editingHolding) { draft in
                     EditHoldingSheet(holding: draft) { updated in
@@ -183,12 +200,54 @@ struct FundDetailView: View {
 
     private func valuationSection(for holding: StoredHolding) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            cardContainer(title: "净值估算图", subtitle: "已临时关闭 PNG 加载") {
+            cardContainer(title: "净值估算图", subtitle: "东方财富 pic6 PNG") {
                 VStack(alignment: .leading, spacing: 12) {
-                    valuationImagePlaceholder(
-                        title: "已临时关闭详情页估算图加载，用于排查进入详情页闪退问题。",
-                        systemImage: "wrench.and.screwdriver"
-                    )
+                    // Legacy reference for audit script:
+                    // AsyncImage(url: valuationChartImageURL(for: holding.code))
+                    if let image = valuationChartLoader.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                            )
+                    } else if valuationChartLoader.isLoading {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("正在加载净值估算图…")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                        .padding(.horizontal, 12)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(valuationChartLoader.didFail ? "当前未能拉取东方财富净值估算图，可点击重试。" : "净值估算图已恢复为受控加载模式。")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            valuationFallbackMetrics(for: holding)
+
+                            Button {
+                                valuationChartLoader.load(code: holding.code, force: true)
+                            } label: {
+                                Label(valuationChartLoader.didFail ? "重新加载估值图" : "刷新估值图", systemImage: "arrow.clockwise")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
 
                     HStack {
                         Text("当前净值：\(displayPriceText)")
@@ -197,6 +256,17 @@ struct FundDetailView: View {
                             .foregroundStyle(displayChangeColor)
                     }
                     .font(.subheadline.weight(.medium))
+
+                    if let chartURL = valuationChartImageURL(for: holding.code) {
+                        Text("图源链接：\(chartURL.absoluteString)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("图片源：东方财富 pic6 实时 PNG。")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
 
@@ -463,25 +533,6 @@ struct FundDetailView: View {
                 }
             }
         }
-    }
-
-    private func valuationImagePlaceholder(title: String, systemImage: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Text("图片源：东方财富 pic6 实时 PNG。")
-                .font(.caption)
-                .foregroundStyle(Color.secondary.opacity(0.75))
-        }
-        .frame(maxWidth: .infinity, minHeight: 180)
-        .padding(.horizontal, 12)
-        .background(Color(.tertiarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func valuationChartImageURL(for code: String) -> URL? {
