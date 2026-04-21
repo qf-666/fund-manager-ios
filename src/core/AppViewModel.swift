@@ -336,27 +336,6 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func loadValuationTrend(for code: String) async -> FundValuationTrend? {
-        do {
-            return try await api.fetchValuationTrend(code: code)
-        } catch {
-            present(error)
-            return nil
-        }
-    }
-
-    func cachedValuationTrend(for code: String) -> CachedFundValuationTrend? {
-        state.cachedValuationTrends[code]
-    }
-
-    func cacheValuationTrend(_ trend: FundValuationTrend, for code: String) {
-        state.cachedValuationTrends[code] = CachedFundValuationTrend(
-            trend: trend,
-            savedAt: Date()
-        )
-        persist()
-    }
-
     func loadPositionSnapshot(for code: String) async -> FundPositionSnapshot? {
         do {
             return try await api.fetchPositionSnapshot(code: code)

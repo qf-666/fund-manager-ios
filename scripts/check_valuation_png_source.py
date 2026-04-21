@@ -19,21 +19,14 @@ def main() -> int:
 
     required_checks = {
         "FundDetailView.swift": [
-            "Chart(valuationTrend.points)",
-        ],
-        "EastMoneyAPI.swift": [
-            "func fetchValuationTrend(code: String) async throws -> FundValuationTrend?",
-            "FundVarietieValuationDetail.ashx",
-        ],
-        "AppViewModel.swift": [
-            "func loadValuationTrend(for code: String) async -> FundValuationTrend?",
+            "AsyncImage(url: valuationChartImageURL(for: holding.code))",
+            "valuationChartImageURL(for code: String)",
+            "https://j4.dfcfw.com/charts/pic6/",
         ],
     }
 
     sources = {
         "FundDetailView.swift": detail_view,
-        "EastMoneyAPI.swift": api,
-        "AppViewModel.swift": view_model,
     }
 
     for file_name, tokens in required_checks.items():
@@ -43,15 +36,15 @@ def main() -> int:
                 errors.append(f"{file_name} missing {token}")
 
     forbidden_tokens = [
-        "AsyncImage(url: valuationChartImageURL(for: holding.code))",
-        "https://bronze-fire.exe.xyz/fund-manager-ios/valuation-png/",
-        "https://j4.dfcfw.com/charts/pic6/",
-        "valuationChartImageURL(for code: String)",
+        "Chart(valuationTrend.points)",
+        "func loadValuationTrend(for code: String) async -> FundValuationTrend?",
+        "func fetchValuationTrend(code: String) async throws -> FundValuationTrend?",
+        "FundVarietieValuationDetail.ashx",
     ]
 
     for token in forbidden_tokens:
-        if token in detail_view:
-            errors.append(f"FundDetailView.swift should not contain {token}")
+        if token in detail_view or token in api or token in view_model:
+            errors.append(f"project should not contain {token}")
 
     if errors:
         print("Valuation chart source check failed:")

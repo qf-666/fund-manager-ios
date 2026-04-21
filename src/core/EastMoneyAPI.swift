@@ -6,7 +6,6 @@ protocol EastMoneyAPIProtocol {
     func fetchIndices() async throws -> [MarketIndexItem]
     func fetchProfile(code: String) async throws -> FundProfile
     func fetchNetValueSeries(code: String, range: ChartRange) async throws -> [NAVPoint]
-    func fetchValuationTrend(code: String) async throws -> FundValuationTrend?
     func fetchPositionSnapshot(code: String) async throws -> FundPositionSnapshot
 }
 
@@ -194,42 +193,6 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             )
         }
         .sorted { $0.date < $1.date }
-    }
-
-    func fetchValuationTrend(code: String) async throws -> FundValuationTrend? {
-        let rawURL = "https://fundmobapi.eastmoney.com/FundMApi/FundVarietieValuationDetail.ashx?FCODE=\(code)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
-        guard let url = URL(string: rawURL) else {
-            throw EastMoneyAPIError.invalidURL(rawURL)
-        }
-
-        let object = try await request(url)
-        guard let root = object as? [String: Any] else {
-            throw EastMoneyAPIError.invalidPayload("????????")
-        }
-
-        guard
-            let expansion = root["Expansion"] as? [String: Any],
-            let officialNAV = double(expansion["DWJZ"])
-        else {
-            return nil
-        }
-
-        let rows = root["Datas"] as? [String] ?? []
-        let points = rows.compactMap { row -> FundValuationPoint? in
-            let components = row.split(separator: ",")
-            guard components.count >= 3 else { return nil }
-            let time = String(components[0])
-            guard let changePercent = Double(components[2]) else { return nil }
-            return FundValuationPoint(time: time, changePercent: changePercent)
-        }
-
-        guard !points.isEmpty else { return nil }
-
-        return FundValuationTrend(
-            officialNAV: officialNAV,
-            officialNAVDate: string(expansion["FSRQ"]),
-            points: points
-        )
     }
 
     func fetchPositionSnapshot(code: String) async throws -> FundPositionSnapshot {
