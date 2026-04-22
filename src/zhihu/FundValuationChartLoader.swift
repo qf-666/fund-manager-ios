@@ -2,16 +2,22 @@ import Foundation
 import UIKit
 
 enum FundValuationChartEndpoint {
-    private static let proxyBaseURL = URL(string: "https://bronze-fire.exe.xyz")!
-
-    static func url(for code: String, cacheSeed _: String? = nil) -> URL? {
+    static func url(for code: String, cacheSeed: String? = nil) -> URL? {
         let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedCode.isEmpty else { return nil }
 
-        return proxyBaseURL
-            .appendingPathComponent("fund-manager-ios", isDirectory: true)
-            .appendingPathComponent("valuation-png", isDirectory: true)
-            .appendingPathComponent("\(trimmedCode).png", isDirectory: false)
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "j4.dfcfw.com"
+        components.path = "/charts/pic6/\(trimmedCode).png"
+
+        if let cacheSeed, !cacheSeed.isEmpty {
+            components.queryItems = [
+                URLQueryItem(name: "t", value: cacheSeed)
+            ]
+        }
+
+        return components.url
     }
 }
 

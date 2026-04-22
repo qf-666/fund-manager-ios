@@ -23,6 +23,8 @@ def main() -> int:
         "FundValuationChartEndpoint.url(for: trimmedCode, cacheSeed: cacheSeed)",
         "valuationChartLoader.load(code: holding.code, force: true)",
         'Label("重新加载估值图", systemImage: "arrow.clockwise")',
+        'cardContainer(title: "净值估算图", subtitle: "直连 PNG（j4.dfcfw.com）")',
+        'Text("图片源：直连 j4.dfcfw.com/charts/pic6/<基金代码>.png。")',
     ]
 
     for token in required_detail_tokens:
@@ -36,16 +38,15 @@ def main() -> int:
     ]
     for token in required_auto_loads:
         if token not in detail_view:
-            errors.append("FundDetailView.swift should auto-load proxy valuation PNG")
+            errors.append("FundDetailView.swift should auto-load direct valuation PNG")
 
-    forbidden_manual_tokens = [
-        "supportsDirectValuationPNG",
-        "ProcessInfo.processInfo.operatingSystemVersion",
-        'Label(valuationChartLoader.didFail ? "重新加载估值图" : "手动加载估值图"',
-        "手动加载估值图",
-        "iOS 16.3 及以下",
+    forbidden_proxy_tokens = [
+        "代理 PNG（缓存）",
+        "图片源：代理缓存 PNG（上游为东方财富 pic6）。",
+        "proxy valuation PNG",
+        "bronze-fire.exe.xyz",
     ]
-    for token in forbidden_manual_tokens:
+    for token in forbidden_proxy_tokens:
         if token in detail_view:
             errors.append(f"FundDetailView.swift should not contain {token}")
 

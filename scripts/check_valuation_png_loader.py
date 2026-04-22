@@ -41,9 +41,10 @@ def main() -> int:
         'func reset()',
         'configuration.urlCache = nil',
         'configuration.requestCachePolicy = .reloadIgnoringLocalCacheData',
-        'https://bronze-fire.exe.xyz',
-        'appendingPathComponent("fund-manager-ios", isDirectory: true)',
-        'appendingPathComponent("valuation-png", isDirectory: true)',
+        'components.scheme = "https"',
+        'components.host = "j4.dfcfw.com"',
+        'components.path = "/charts/pic6/\\(trimmedCode).png"',
+        'URLQueryItem(name: "t", value: cacheSeed)',
         'request.setValue(',
         'forHTTPHeaderField: "User-Agent"',
         'FundValuationChartEndpoint.url(for: code, cacheSeed: cacheSeed)',
@@ -53,8 +54,9 @@ def main() -> int:
             errors.append(f'FundValuationChartLoader.swift missing {token}')
 
     forbidden_loader_tokens = [
-        'URLQueryItem(name: "t", value: cacheSeed)',
-        'components.queryItems = [',
+        'https://bronze-fire.exe.xyz',
+        'appendingPathComponent("fund-manager-ios", isDirectory: true)',
+        'appendingPathComponent("valuation-png", isDirectory: true)',
     ]
     for token in forbidden_loader_tokens:
         if token in png_loader:
