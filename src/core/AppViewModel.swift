@@ -134,39 +134,63 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    func refreshAll(force _: Bool = false) async {
+    func refreshAll(force: Bool = false) async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
 
-        var firstError: Error?
-        var didUpdate = false
+        var indexError: Error?
+        var snapshotError: Error?
+        var didUpdateQuotes = false
+        var didUpdateIndices = false
 
         do {
             let freshIndices = try await api.fetchIndices()
             indices = freshIndices
-            didUpdate = true
+            didUpdateIndices = true
         } catch {
-            firstError = error
+            indexError = error
         }
 
         do {
             let freshSnapshots = try await fetchSnapshotsForCurrentHoldings()
             quotes = Dictionary(uniqueKeysWithValues: freshSnapshots.map { ($0.code, $0) })
-            didUpdate = true
+            didUpdateQuotes = true
         } catch {
-            if firstError == nil {
-                firstError = error
-            }
+            snapshotError = error
         }
 
-        if didUpdate {
+        if didUpdateQuotes || didUpdateIndices {
             lastUpdated = Date()
         }
 
-        if let firstError {
-            present(firstError)
-        } else {
+        // 有一块成功就不弹阻塞弹窗：用户截图里估值已出，只是指数/某次副请求断了。
+        // 自动刷新（force=false）且本地已有数据时，瞬时断网也不打扰。
+        let hasCachedData = !quotes.isEmpty || !indices.isEmpty
+        if didUpdateQuotes {
+            errorMessage = nil
+            return
+        }
+
+        if let snapshotError, shouldPresent(snapshotError, force: force, hasCachedData: hasCachedData) {
+            present(snapshotError)
+            return
+        }
+
+        // 仅指数失败、持仓已有缓存：静默，不弹窗
+        if didUpdateIndices {
+            errorMessage = nil
+            return
+        }
+
+        if let indexError, shouldPresent(indexError, force: force, hasCachedData: hasCachedData) {
+            present(indexError)
+            return
+        }
+
+        if force, !hasCachedData, let error = snapshotError ?? indexError {
+            present(error)
+        } else if snapshotError == nil, indexError == nil {
             errorMessage = nil
         }
     }
@@ -322,7 +346,7 @@ final class AppViewModel: ObservableObject {
         do {
             return try await api.fetchProfile(code: code)
         } catch {
-            present(error)
+            // 详情页局部失败：页面自有空态，不抢首页全局弹窗
             return nil
         }
     }
@@ -331,7 +355,6 @@ final class AppViewModel: ObservableObject {
         do {
             return try await api.fetchNetValueSeries(code: code, range: range)
         } catch {
-            present(error)
             return []
         }
     }
@@ -340,7 +363,6 @@ final class AppViewModel: ObservableObject {
         do {
             return try await api.fetchPositionSnapshot(code: code)
         } catch {
-            present(error)
             return nil
         }
     }
@@ -356,7 +378,58 @@ final class AppViewModel: ObservableObject {
     }
 
     private func present(_ error: Error) {
-        errorMessage = error.localizedDescription
+        errorMessage = friendlyMessage(for: error)
+    }
+
+    /// 是否值得弹全局「请求失败」：
+    /// - 用户主动刷新 / 首屏且无缓存 → 可以提示
+    /// - 自动刷新 / 已有数据时的瞬时断网 → 不弹
+    private func shouldPresent(_ error: Error, force: Bool, hasCachedData: Bool) -> Bool {
+        if force, !hasCachedData {
+            return true
+        }
+        if isTransientNetworkError(error) {
+            return force && !hasCachedData
+        }
+        return force
+    }
+
+    private func isTransientNetworkError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorTimedOut,
+                 NSURLErrorCannotFindHost,
+                 NSURLErrorCannotConnectToHost,
+                 NSURLErrorNetworkConnectionLost,
+                 NSURLErrorNotConnectedToInternet,
+                 NSURLErrorDNSLookupFailed,
+                 NSURLErrorInternationalRoamingOff,
+                 NSURLErrorCallIsActive,
+                 NSURLErrorDataNotAllowed:
+                return true
+            default:
+                break
+            }
+        }
+        if error is EastMoneyAPIError {
+            // invalidResponse 多为对端掐连接，按瞬时处理
+            if case EastMoneyAPIError.invalidResponse = error {
+                return true
+            }
+        }
+        let text = error.localizedDescription
+        return text.contains("网络连接已中断")
+            || text.contains("The network connection was lost")
+            || text.contains("timed out")
+            || text.contains("超时")
+    }
+
+    private func friendlyMessage(for error: Error) -> String {
+        if isTransientNetworkError(error) {
+            return "网络不稳定，已保留上次数据。可下拉再试。"
+        }
+        return error.localizedDescription
     }
 
     private func formatAppIconError(_ error: Error, action: String) -> String {
