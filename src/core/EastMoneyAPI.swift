@@ -107,37 +107,53 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     func fetchIndices() async throws -> [MarketIndexItem] {
-        let rawURL = "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f12,f13,f14&secids=1.000001,1.000300,0.399001,0.399006"
-        guard let url = URL(string: rawURL) else {
-            throw EastMoneyAPIError.invalidURL(rawURL)
-        }
-
-        let object = try await request(url)
-        guard
-            let root = object as? [String: Any],
-            let data = root["data"] as? [String: Any],
-            let diff = data["diff"] as? [[String: Any]]
-        else {
-            throw EastMoneyAPIError.invalidPayload("?????? data.diff")
-        }
-
+        let secids = "1.000001,1.000300,0.399001,0.399006"
         let preferredOrder = ["000001", "000300", "399001", "399006"]
+        let hosts = [
+            "push2.eastmoney.com",
+            "push2delay.eastmoney.com",
+            "82.push2.eastmoney.com"
+        ]
 
-        return diff.compactMap { item in
-            guard
-                let code = string(item["f12"]),
-                let name = string(item["f14"]),
-                let latest = double(item["f2"]),
-                let change = double(item["f4"]),
-                let changePercent = double(item["f3"])
-            else {
-                return nil
+        var lastError: Error = EastMoneyAPIError.invalidResponse
+        for host in hosts {
+            let rawURL = "https://\(host)/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f12,f13,f14&secids=\(secids)"
+            guard let url = URL(string: rawURL) else { continue }
+            do {
+                let object = try await request(url)
+                guard
+                    let root = object as? [String: Any],
+                    let data = root["data"] as? [String: Any],
+                    let diff = data["diff"] as? [[String: Any]]
+                else {
+                    lastError = EastMoneyAPIError.invalidPayload("缺少 data.diff")
+                    continue
+                }
+
+                let items = diff.compactMap { item -> MarketIndexItem? in
+                    guard
+                        let code = string(item["f12"]),
+                        let name = string(item["f14"]),
+                        let latest = double(item["f2"]),
+                        let change = double(item["f4"]),
+                        let changePercent = double(item["f3"])
+                    else {
+                        return nil
+                    }
+                    return MarketIndexItem(code: code, name: name, latest: latest, change: change, changePercent: changePercent)
+                }
+                .sorted { lhs, rhs in
+                    (preferredOrder.firstIndex(of: lhs.code) ?? .max) < (preferredOrder.firstIndex(of: rhs.code) ?? .max)
+                }
+                if !items.isEmpty {
+                    return items
+                }
+            } catch {
+                lastError = error
+                try? await Task.sleep(nanoseconds: 150_000_000)
             }
-            return MarketIndexItem(code: code, name: name, latest: latest, change: change, changePercent: changePercent)
         }
-        .sorted { lhs, rhs in
-            (preferredOrder.firstIndex(of: lhs.code) ?? .max) < (preferredOrder.firstIndex(of: rhs.code) ?? .max)
-        }
+        throw lastError
     }
 
     func fetchProfile(code: String) async throws -> FundProfile {
@@ -226,24 +242,10 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             }
             return "\(exchange).\(code)"
         }
-        .joined(separator: ",")
 
-        var quotesByCode: [String: [String: Any]] = [:]
-        if !secIDs.isEmpty {
-            let quoteURLString = "https://push2.eastmoney.com/api/qt/ulist.np/get?fields=f2,f3,f4,f12,f13,f14,f292&fltt=2&secids=\(secIDs)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
-            if let quoteURL = URL(string: quoteURLString) {
-                if let quoteObject = try? await request(quoteURL),
-                   let quoteRoot = quoteObject as? [String: Any],
-                   let quoteData = quoteRoot["data"] as? [String: Any],
-                   let diff = quoteData["diff"] as? [[String: Any]]
-                {
-                    quotesByCode = Dictionary(uniqueKeysWithValues: diff.compactMap { item in
-                        guard let code = string(item["f12"]) else { return nil }
-                        return (code, item)
-                    })
-                }
-            }
-        }
+        // push2 经常被掐连接：失败时仍返回持仓列表（价格/涨跌为 --），
+        // 绝不能让整页持仓明细失败或冒泡成全局「网络连接已中断」。
+        let quotesByCode = await fetchStockQuotes(secIDs: secIDs)
 
         let holdings = stocks.compactMap { item -> FundPositionHolding? in
             guard let code = string(item["GPDM"]), let name = string(item["GPJC"]) else {
@@ -262,6 +264,44 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         }
 
         return FundPositionSnapshot(asOfDate: string(root["Expansion"]), holdings: holdings)
+    }
+
+    /// push2 多节点重试；全部失败返回空字典，由 UI 显示 --。
+    private func fetchStockQuotes(secIDs: [String]) async -> [String: [String: Any]] {
+        guard !secIDs.isEmpty else { return [:] }
+        let joined = secIDs.joined(separator: ",")
+        let hosts = [
+            "push2.eastmoney.com",
+            "push2delay.eastmoney.com",
+            "82.push2.eastmoney.com",
+            "push2his.eastmoney.com"
+        ]
+        let query = "api/qt/ulist.np/get?fields=f2,f3,f4,f12,f13,f14,f292&fltt=2&secids=\(joined)&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0"
+
+        for host in hosts {
+            let rawURL = "https://\(host)/\(query)"
+            guard let url = URL(string: rawURL) else { continue }
+            for _ in 0..<2 {
+                do {
+                    let object = try await request(url)
+                    guard
+                        let root = object as? [String: Any],
+                        let data = root["data"] as? [String: Any],
+                        let diff = data["diff"] as? [[String: Any]],
+                        !diff.isEmpty
+                    else {
+                        continue
+                    }
+                    return Dictionary(uniqueKeysWithValues: diff.compactMap { item in
+                        guard let code = string(item["f12"]) else { return nil }
+                        return (code, item)
+                    })
+                } catch {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+            }
+        }
+        return [:]
     }
 
     private func fetchFallbackEstimates(for snapshots: [RemoteFundSnapshot]) async -> [String: FundEstimateSnapshot] {
