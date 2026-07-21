@@ -74,6 +74,8 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             throw EastMoneyAPIError.invalidPayload("?????? Datas")
         }
 
+        // Expansion.GZTIME 在估值接口降级时仍可能返回“今天”的日期字符串，
+        // 但 Datas[].GSZ/GSZZL 为空。只有条目本身带有估值字段时，才回退用它。
         let expansion = root["Expansion"] as? [String: Any]
         let sharedEstimatedTime = string(expansion?["GZTIME"])
 
@@ -81,15 +83,22 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             guard let code = string(item["FCODE"]), let name = string(item["SHORTNAME"]) else {
                 return nil
             }
+
+            let estimatedNav = double(item["GSZ"])
+            let estimatedChangePercent = double(item["GSZZL"])
+            let itemEstimatedTime = string(item["GZTIME"]) ?? string(item["HQDATE"])
+            let hasEstimate = estimatedNav != nil || estimatedChangePercent != nil
+
             return RemoteFundSnapshot(
                 code: code,
                 name: name,
                 nav: double(item["NAV"]),
-                estimatedNav: double(item["GSZ"]),
-                estimatedChangePercent: double(item["GSZZL"]),
+                estimatedNav: estimatedNav,
+                estimatedChangePercent: estimatedChangePercent,
                 dailyNavChangePercent: double(item["NAVCHGRT"]),
                 reportDate: string(item["PDATE"]),
-                estimatedTime: string(item["GZTIME"]) ?? string(item["HQDATE"]) ?? sharedEstimatedTime
+                // 无估值数据时不要写入 shared GZTIME，否则会误判“有估值日”。
+                estimatedTime: hasEstimate ? (itemEstimatedTime ?? sharedEstimatedTime) : itemEstimatedTime
             )
         }
 
@@ -256,18 +265,33 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     private func fetchFallbackEstimates(for snapshots: [RemoteFundSnapshot]) async -> [String: FundEstimateSnapshot] {
-        let missingEstimateCodes = snapshots
-            .filter { $0.estimatedNav == nil || $0.estimatedChangePercent == nil || $0.estimatedTime == nil }
-            .map(\.code)
-
-        guard !missingEstimateCodes.isEmpty else { return [:] }
+        // fundgz.1234567.com.cn 已大面积 404，主接口 GSZ 也经常为空。
+        // 对缺估值的基金：先试旧 fundgz，再按重仓股涨跌加权估算。
+        let missing = snapshots.filter { $0.estimatedNav == nil || $0.estimatedChangePercent == nil }
+        guard !missing.isEmpty else { return [:] }
 
         var estimates: [String: FundEstimateSnapshot] = [:]
-        for code in missingEstimateCodes {
-            if let estimate = try? await fetchEstimate(code: code) {
-                estimates[estimate.code] = estimate
+
+        await withTaskGroup(of: (String, FundEstimateSnapshot?).self) { group in
+            for snapshot in missing {
+                group.addTask {
+                    if let estimate = try? await self.fetchEstimate(code: snapshot.code) {
+                        return (snapshot.code, estimate)
+                    }
+                    if let estimate = try? await self.fetchPositionWeightedEstimate(for: snapshot) {
+                        return (snapshot.code, estimate)
+                    }
+                    return (snapshot.code, nil)
+                }
+            }
+
+            for await (code, estimate) in group {
+                if let estimate {
+                    estimates[code] = estimate
+                }
             }
         }
+
         return estimates
     }
 
@@ -279,6 +303,10 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         }
 
         let body = try await requestText(url)
+        // 接口下线后会返回 HTML 404 页，直接放弃。
+        guard body.contains("fundcode") || body.contains("jsonpgz") else {
+            return nil
+        }
         guard
             let start = body.firstIndex(of: "("),
             let end = body.lastIndex(of: ")"),
@@ -296,13 +324,61 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             return nil
         }
 
+        let estimatedNav = double(object["gsz"])
+        let estimatedChangePercent = double(object["gszzl"])
+        guard estimatedNav != nil || estimatedChangePercent != nil else {
+            return nil
+        }
+
         return FundEstimateSnapshot(
             code: parsedCode,
             nav: double(object["dwjz"]),
-            estimatedNav: double(object["gsz"]),
-            estimatedChangePercent: double(object["gszzl"]),
+            estimatedNav: estimatedNav,
+            estimatedChangePercent: estimatedChangePercent,
             reportDate: string(object["jzrq"]),
             estimatedTime: string(object["gztime"])
+        )
+    }
+
+    /// 用重仓股当日涨跌幅按持仓占比加权，近似估算净值涨跌。
+    /// 仓位披露通常滞后（季报），精度不如官方估值，但在 GSZ 全空时可用。
+    private func fetchPositionWeightedEstimate(for snapshot: RemoteFundSnapshot) async throws -> FundEstimateSnapshot? {
+        guard let nav = snapshot.nav else { return nil }
+
+        let position = try await fetchPositionSnapshot(code: snapshot.code)
+        let holdings = position.holdings.filter {
+            ($0.positionRatio ?? 0) > 0 && $0.changePercent != nil
+        }
+        guard !holdings.isEmpty else { return nil }
+
+        var weightedChange = 0.0
+        var coveredWeight = 0.0
+        for holding in holdings {
+            guard let weight = holding.positionRatio, let change = holding.changePercent else { continue }
+            weightedChange += weight * change
+            coveredWeight += weight
+        }
+
+        // 覆盖持仓占比过低时结果不可信（指数增强/债券/QDII 等）。
+        guard coveredWeight >= 30 else { return nil }
+
+        // weight 是占净值百分比；加权结果 /100 即基金估算涨跌幅%。
+        let estimatedChangePercent = weightedChange / 100
+        let estimatedNav = nav * (1 + estimatedChangePercent / 100)
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        let estimatedTime = formatter.string(from: Date())
+
+        return FundEstimateSnapshot(
+            code: snapshot.code,
+            nav: nav,
+            estimatedNav: estimatedNav,
+            estimatedChangePercent: estimatedChangePercent,
+            reportDate: snapshot.reportDate,
+            estimatedTime: estimatedTime
         )
     }
 
@@ -331,10 +407,14 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     private func makeRequest(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
             forHTTPHeaderField: "User-Agent"
         )
+        // push2 / fundmobapi 对无 Referer 请求偶发断连，对齐天天基金站内请求。
+        request.setValue("https://fund.eastmoney.com/", forHTTPHeaderField: "Referer")
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         return request
     }
 

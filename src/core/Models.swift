@@ -73,11 +73,22 @@ struct RemoteFundSnapshot: Identifiable, Hashable {
         estimatedTime.map { String($0.prefix(10)) }
     }
 
+    /// 是否有可用的盘中估值（不能只靠 GZTIME 字符串判断）。
+    var hasLiveEstimate: Bool {
+        estimatedNav != nil || estimatedChangePercent != nil
+    }
+
+    /// 当日已公布正式净值，或没有任何估值数据时，优先展示正式净值口径。
+    ///
+    /// 注意：天天基金 `FundMNFInfo` 在估值不可用时仍可能返回
+    /// `Expansion.GZTIME = 今天`，但 `GSZ/GSZZL` 为空。此时绝不能把
+    /// 空估值当成“有估值”，否则会把今日收益算成 0、估算收益变成 `--`。
     var prefersOfficialSnapshot: Bool {
+        guard hasLiveEstimate else { return true }
         if let reportDay, let estimatedDay {
             return reportDay == estimatedDay
         }
-        return estimatedNav == nil && estimatedChangePercent == nil
+        return false
     }
 
     var displayPrice: Double? {
@@ -95,18 +106,35 @@ struct RemoteFundSnapshot: Identifiable, Hashable {
     }
 
     var marketValuePrice: Double? {
+        // 持仓市值始终按已确认净值；无净值时再回退展示价。
         nav ?? displayPrice
     }
 
     var dailyPnLPerUnit: Double? {
-        if prefersOfficialSnapshot, let nav, let changePercent = dailyNavChangePercent {
+        // 1) 盘中估值可用：估算净值 - 已确认净值（对齐 x2rr/funds 的 gsz 分支）
+        if hasLiveEstimate, !prefersOfficialSnapshot {
+            if let estimatedNav, let nav {
+                return estimatedNav - nav
+            }
+            if let nav, let changePercent = estimatedChangePercent {
+                return nav * changePercent / 100
+            }
+        }
+
+        // 2) 估值日 == 净值日（净值已公布替换估值）：用日涨跌幅反推
+        //    gains = (dwjz - dwjz / (1 + navChg%)) * shares
+        //    注意：无任何估值数据时不要走这里，否则会把「昨日涨跌」当成「今日收益」。
+        if hasLiveEstimate, prefersOfficialSnapshot,
+           let nav, let changePercent = dailyNavChangePercent
+        {
             let ratio = 1 + changePercent / 100
             guard abs(ratio) > .ulpOfOne else { return nil }
             return nav - nav / ratio
         }
 
-        guard let estimatedNav, let nav else { return nil }
-        return estimatedNav - nav
+        // 3) 估值接口整体不可用：返回 nil
+        //    汇总层会把 nil 当 0（今日收益 ¥0.00），单行显示「估算收益 --」
+        return nil
     }
 
     var displayTimestamp: String? {
@@ -123,7 +151,13 @@ struct RemoteFundSnapshot: Identifiable, Hashable {
             estimatedChangePercent: estimatedChangePercent ?? estimate.estimatedChangePercent,
             dailyNavChangePercent: dailyNavChangePercent,
             reportDate: reportDate ?? estimate.reportDate,
-            estimatedTime: estimatedTime ?? estimate.estimatedTime
+            // 只有确实补到估值数据时，才写入估值时间，避免空 GZTIME 污染。
+            estimatedTime: {
+                if estimate.estimatedNav != nil || estimate.estimatedChangePercent != nil {
+                    return estimatedTime ?? estimate.estimatedTime
+                }
+                return estimatedTime
+            }()
         )
     }
 }
