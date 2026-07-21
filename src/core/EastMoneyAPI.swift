@@ -265,8 +265,10 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
     }
 
     private func fetchFallbackEstimates(for snapshots: [RemoteFundSnapshot]) async -> [String: FundEstimateSnapshot] {
-        // fundgz.1234567.com.cn 已大面积 404，主接口 GSZ 也经常为空。
-        // 对缺估值的基金：先试旧 fundgz，再按重仓股涨跌加权估算。
+        // 对齐 choose.funds v3.4.4：
+        // 1) 旧 fundgz（多数已 404）
+        // 2) 新浪 getEstimateNetworthPic（插件 background 批量兜底）
+        // 3) getCalcGszzl：重仓股加权 / 100 归一（popup 主路径）
         let missing = snapshots.filter { $0.estimatedNav == nil || $0.estimatedChangePercent == nil }
         guard !missing.isEmpty else { return [:] }
 
@@ -276,6 +278,9 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             for snapshot in missing {
                 group.addTask {
                     if let estimate = try? await self.fetchEstimate(code: snapshot.code) {
+                        return (snapshot.code, estimate)
+                    }
+                    if let estimate = try? await self.fetchSinaEstimate(for: snapshot) {
                         return (snapshot.code, estimate)
                     }
                     if let estimate = try? await self.fetchPositionWeightedEstimate(for: snapshot) {
@@ -340,8 +345,84 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         )
     }
 
-    /// 用重仓股当日涨跌幅按持仓占比加权，近似估算净值涨跌。
-    /// 仓位披露通常滞后（季报），精度不如官方估值，但在 GSZ 全空时可用。
+    /// 新浪估值图接口（choose.funds v3.4.4 background 使用）。
+    /// 实测返回 `worth` / `worth_rate`（小数涨跌幅）/ `worth_date`。
+    private func fetchSinaEstimate(for snapshot: RemoteFundSnapshot) async throws -> FundEstimateSnapshot? {
+        let rawURL = "https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/FdFundService.getEstimateNetworthPic?symbol=\(snapshot.code)"
+        guard let url = URL(string: rawURL) else {
+            throw EastMoneyAPIError.invalidURL(rawURL)
+        }
+
+        let object = try await request(url)
+        guard
+            let root = object as? [String: Any],
+            let result = root["result"] as? [String: Any],
+            let data = result["data"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        // 兼容两种字段：
+        // - 新版：worth / worth_rate / worth_date
+        // - 旧版 networth[]：pre_nav2 / growthrate2 / pre_date
+        var estimatedNav = double(data["worth"])
+        var estimatedChangePercent = double(data["worth_rate"]).map { $0 * 100 }
+        var estimatedDay = string(data["worth_date"])
+
+        if estimatedNav == nil || estimatedChangePercent == nil,
+           let rows = data["networth"] as? [[String: Any]],
+           let last = rows.last
+        {
+            estimatedNav = estimatedNav ?? double(last["pre_nav2"]) ?? double(last["nav"])
+            if estimatedChangePercent == nil {
+                if let growth = double(last["growthrate2"]) {
+                    estimatedChangePercent = growth * 100
+                } else {
+                    estimatedChangePercent = double(last["growthrate"]).map { abs($0) < 1 ? $0 * 100 : $0 }
+                }
+            }
+            estimatedDay = estimatedDay ?? string(last["pre_date"]) ?? string(last["date"])
+        }
+
+        // 仅有涨跌幅时用净值推算估算净值
+        if estimatedNav == nil, let nav = snapshot.nav, let change = estimatedChangePercent {
+            estimatedNav = nav * (1 + change / 100)
+        }
+        if estimatedChangePercent == nil, let nav = snapshot.nav, let gsz = estimatedNav, nav > 0 {
+            estimatedChangePercent = (gsz / nav - 1) * 100
+        }
+
+        guard estimatedNav != nil || estimatedChangePercent != nil else {
+            return nil
+        }
+
+        let estimatedTime: String?
+        if let estimatedDay {
+            // worth_date 可能是 20260721
+            if estimatedDay.count == 8, estimatedDay.allSatisfy(\.isNumber) {
+                let y = estimatedDay.prefix(4)
+                let m = estimatedDay.dropFirst(4).prefix(2)
+                let d = estimatedDay.suffix(2)
+                estimatedTime = "\(y)-\(m)-\(d)"
+            } else {
+                estimatedTime = estimatedDay
+            }
+        } else {
+            estimatedTime = shanghaiTimestamp()
+        }
+
+        return FundEstimateSnapshot(
+            code: snapshot.code,
+            nav: snapshot.nav,
+            estimatedNav: estimatedNav,
+            estimatedChangePercent: estimatedChangePercent,
+            reportDate: snapshot.reportDate,
+            estimatedTime: estimatedTime
+        )
+    }
+
+    /// 对齐 choose.funds v3.4.4 `getCalcGszzl` + `calcFundEstimateChange`：
+    /// 重仓占比归一后加权 f3，得到估算涨跌幅 %。
     private func fetchPositionWeightedEstimate(for snapshot: RemoteFundSnapshot) async throws -> FundEstimateSnapshot? {
         guard let nav = snapshot.nav else { return nil }
 
@@ -349,28 +430,28 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         let holdings = position.holdings.filter {
             ($0.positionRatio ?? 0) > 0 && $0.changePercent != nil
         }
-        guard !holdings.isEmpty else { return nil }
 
-        var weightedChange = 0.0
-        var coveredWeight = 0.0
-        for holding in holdings {
-            guard let weight = holding.positionRatio, let change = holding.changePercent else { continue }
-            weightedChange += weight * change
-            coveredWeight += weight
+        // 联接基金：持仓可能是 ETFCODE，插件会再请求一次 ETF 成分
+        if holdings.isEmpty {
+            // fetchPositionSnapshot 已展开股票；空则放弃
+            return nil
         }
 
-        // 覆盖持仓占比过低时结果不可信（指数增强/债券/QDII 等）。
-        guard coveredWeight >= 30 else { return nil }
+        // 插件公式：sum((JZBL / totalJZBL) * f3)，不再 /100 把现金仓位摊薄。
+        let totalWeight = holdings.compactMap(\.positionRatio).reduce(0, +)
+        guard totalWeight > 0 else { return nil }
 
-        // weight 是占净值百分比；加权结果 /100 即基金估算涨跌幅%。
-        let estimatedChangePercent = weightedChange / 100
+        var weightedChange = 0.0
+        for holding in holdings {
+            guard let weight = holding.positionRatio, let change = holding.changePercent else { continue }
+            weightedChange += (weight / totalWeight) * change
+        }
+
+        // 覆盖持仓过少时结果不可信
+        guard holdings.count >= 3 || totalWeight >= 20 else { return nil }
+
+        let estimatedChangePercent = weightedChange
         let estimatedNav = nav * (1 + estimatedChangePercent / 100)
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        let estimatedTime = formatter.string(from: Date())
 
         return FundEstimateSnapshot(
             code: snapshot.code,
@@ -378,8 +459,16 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             estimatedNav: estimatedNav,
             estimatedChangePercent: estimatedChangePercent,
             reportDate: snapshot.reportDate,
-            estimatedTime: estimatedTime
+            estimatedTime: shanghaiTimestamp()
         )
+    }
+
+    private func shanghaiTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: Date())
     }
 
     private func request(_ url: URL) async throws -> Any {
@@ -408,12 +497,18 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        // 对齐 choose.funds v3.4.4 rules.json：fundmobapi 用移动 Safari UA
         request.setValue(
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
             forHTTPHeaderField: "User-Agent"
         )
-        // push2 / fundmobapi 对无 Referer 请求偶发断连，对齐天天基金站内请求。
-        request.setValue("https://fund.eastmoney.com/", forHTTPHeaderField: "Referer")
+        let host = url.host?.lowercased() ?? ""
+        if host.contains("sina.com.cn") {
+            request.setValue("https://finance.sina.com.cn/", forHTTPHeaderField: "Referer")
+        } else {
+            // push2 / fundmobapi 对无 Referer 请求偶发断连
+            request.setValue("https://fund.eastmoney.com/", forHTTPHeaderField: "Referer")
+        }
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         return request
     }

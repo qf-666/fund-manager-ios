@@ -94,23 +94,47 @@ https://fundgz.1234567.com.cn/js/{code}.js
    - 估算收益仍为 `--`，今日收益 `¥0.00`（诚实降级，不再误判）
    - 持有额 / 持有收益 / 已确认涨跌幅仍正常
 
-## 与 x2rr/funds v3.4.4 的关系
+## 与 choose.funds v3.4.4（商店 CRX）的关系
 
-公开仓库 [x2rr/funds@3.4.4](https://github.com/x2rr/funds/releases/tag/3.4.4) 更新说明为「优化估值问题」，
-但 **git diff 仅 README 4 行**，`src/popup/App.vue` / `background.js` 仍是：
+公开 GitHub 源码 tag 仅改 README；**商店安装包 3.4.4**（已解包分析）才是真修复：
 
-```js
-// 主接口不变
+### 主接口仍是
+
+```
 FundMNewApi/FundMNFInfo
-
-// 有 GSZ：gains = (gsz - dwjz) * num
-// 净值日 == 估值日：用 NAVCHGRT 反推
-// 无 gsz：gains 保持 0
 ```
 
-也就是说插件开源侧 **没有换新估值源**。商店/小程序端的「优化」可能是私有构建。
-本 App 在对齐上述计算分支的同时，额外增加了 **重仓股加权估值兜底**（公开接口），
-以应对 `GSZ` 全空 + `fundgz` 404 的现状。
+### 无 GSZ 时的新逻辑（popup.js）
+
+1. `useCalc = true`
+2. `getCalcGszzl(code)`：
+   - `FundMNInverstPosition` 取重仓
+   - `push2 ulist` 取 `f3`
+   - `calcFundEstimateChange`：`Σ (JZBL/totalJZBL * f3)` → 估算涨跌幅 %
+3. `calcGsz = dwjz * (1 + 0.01 * calcGszzl)`
+4. `gains = amount * calcGszzl * 0.01`（在非 hasReplace 时覆盖 gains）
+
+### background 额外批量源
+
+```
+https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/FdFundService.getEstimateNetworthPic?symbol={code}
+```
+
+返回 `worth` / `worth_rate`（小数）/ `worth_date`。
+
+### rules.json
+
+对 `fundmobapi.eastmoney.com` 强制移动 Safari UA。
+
+### 本 App 对齐方式
+
+| 插件 3.4.4 | iOS App |
+|-----------|---------|
+| FundMNFInfo 主路径 | 同 |
+| 空 GZTIME 不误判 | `hasLiveEstimate` |
+| getCalcGszzl 加权 | `fetchPositionWeightedEstimate`（归一公式） |
+| 新浪 getEstimateNetworthPic | `fetchSinaEstimate` |
+| 移动 UA | `makeRequest` |
 
 ## 相关文件
 
