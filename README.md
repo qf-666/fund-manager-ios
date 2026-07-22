@@ -84,4 +84,4 @@ open ZhihuFunds.xcodeproj
 
 ## 版本
 
-当前默认版本：`v1.0.26`
+当前默认版本：`v1.0.29`
