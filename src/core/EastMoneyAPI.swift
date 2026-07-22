@@ -385,8 +385,14 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
         )
     }
 
-    /// 新浪估值图接口（choose.funds v3.4.4 background 使用）。
-    /// 实测返回 `worth` / `worth_rate`（小数涨跌幅）/ `worth_date`。
+    /// 新浪估值图接口（choose.funds / 养基类插件常用兜底）。
+    ///
+    /// 注意字段语义（2026-07 实测）：
+    /// - `worth` / `worth_rate` / `worth_date` = **已确认正式净值** 及其日涨跌（常等于 NAV / NAVCHGRT / PDATE）
+    /// - `networth[]` 才是盘中估值序列：`pre_nav2` / `growthrate2` / `pre_date` / `min_time`
+    ///
+    /// 旧实现优先取 worth，会在 FundMNFInfo 无 GSZ 时把「昨日正式涨跌」当成今日估值，
+    /// 列表右上角日期停在净值日（如 07/21），估算收益也变成昨日涨跌幅反推。
     private func fetchSinaEstimate(for snapshot: RemoteFundSnapshot) async throws -> FundEstimateSnapshot? {
         let rawURL = "https://stock.finance.sina.com.cn/fundInfo/api/openapi.php/FdFundService.getEstimateNetworthPic?symbol=\(snapshot.code)"
         guard let url = URL(string: rawURL) else {
@@ -402,26 +408,52 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             return nil
         }
 
-        // 兼容两种字段：
-        // - 新版：worth / worth_rate / worth_date
-        // - 旧版 networth[]：pre_nav2 / growthrate2 / pre_date
-        var estimatedNav = double(data["worth"])
-        var estimatedChangePercent = double(data["worth_rate"]).map { $0 * 100 }
-        var estimatedDay = string(data["worth_date"])
+        var estimatedNav: Double?
+        var estimatedChangePercent: Double?
+        var estimatedDay: String?
+        var estimatedClock: String?
 
-        if estimatedNav == nil || estimatedChangePercent == nil,
-           let rows = data["networth"] as? [[String: Any]],
-           let last = rows.last
-        {
-            estimatedNav = estimatedNav ?? double(last["pre_nav2"]) ?? double(last["nav"])
-            if estimatedChangePercent == nil {
-                if let growth = double(last["growthrate2"]) {
-                    estimatedChangePercent = growth * 100
-                } else {
-                    estimatedChangePercent = double(last["growthrate"]).map { abs($0) < 1 ? $0 * 100 : $0 }
-                }
+        // 1) 优先用盘中估值序列最后一点（真正的实时估值）
+        if let rows = data["networth"] as? [[String: Any]], let last = rows.last {
+            estimatedNav = double(last["pre_nav2"])
+                ?? double(last["pre_nav"])
+                ?? double(last["nav"])
+            if let growth = double(last["growthrate2"]) {
+                estimatedChangePercent = growth * 100
+            } else if let growth = double(last["growthrate"]) {
+                estimatedChangePercent = abs(growth) < 1 ? growth * 100 : growth
+            } else if let pct = double(last["nav2_pct"]) {
+                estimatedChangePercent = pct
+            } else if let pct = double(last["nav_pct"]) {
+                estimatedChangePercent = pct
             }
-            estimatedDay = estimatedDay ?? string(last["pre_date"]) ?? string(last["date"])
+            estimatedDay = string(last["pre_date"]) ?? string(last["date"])
+            estimatedClock = string(last["min_time"])
+        }
+
+        // 2) 无序列时再尝试 worth 字段，但必须与已确认净值区分：
+        //    worth≈NAV 且 worth_date==PDATE 时，它只是正式净值回显，不能当盘中估值。
+        if estimatedNav == nil && estimatedChangePercent == nil {
+            let worthNav = double(data["worth"])
+            let worthChange = double(data["worth_rate"]).map { $0 * 100 }
+            let worthDay = normalizeDayString(string(data["worth_date"]))
+            let reportDay = normalizeDayString(snapshot.reportDate)
+
+            let looksLikeOfficialNAV: Bool = {
+                if let worthDay, let reportDay, worthDay == reportDay {
+                    return true
+                }
+                if let worthNav, let nav = snapshot.nav, abs(worthNav - nav) < 0.00005 {
+                    return true
+                }
+                return false
+            }()
+
+            if !looksLikeOfficialNAV {
+                estimatedNav = worthNav
+                estimatedChangePercent = worthChange
+                estimatedDay = worthDay
+            }
         }
 
         // 仅有涨跌幅时用净值推算估算净值
@@ -436,20 +468,17 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             return nil
         }
 
-        let estimatedTime: String?
-        if let estimatedDay {
-            // worth_date 可能是 20260721
-            if estimatedDay.count == 8, estimatedDay.allSatisfy(\.isNumber) {
-                let y = estimatedDay.prefix(4)
-                let m = estimatedDay.dropFirst(4).prefix(2)
-                let d = estimatedDay.suffix(2)
-                estimatedTime = "\(y)-\(m)-\(d)"
-            } else {
-                estimatedTime = estimatedDay
-            }
-        } else {
-            estimatedTime = shanghaiTimestamp()
+        // 再兜底一次：估算结果与正式净值完全重合时，视为无盘中估值
+        if let gsz = estimatedNav, let nav = snapshot.nav, abs(gsz - nav) < 0.00005,
+           let change = estimatedChangePercent,
+           let officialChange = snapshot.dailyNavChangePercent,
+           abs(change - officialChange) < 0.005
+        {
+            return nil
         }
+
+        let estimatedTime = composeEstimateTimestamp(day: estimatedDay, clock: estimatedClock)
+            ?? shanghaiTimestamp()
 
         return FundEstimateSnapshot(
             code: snapshot.code,
@@ -459,6 +488,45 @@ struct EastMoneyAPI: EastMoneyAPIProtocol {
             reportDate: snapshot.reportDate,
             estimatedTime: estimatedTime
         )
+    }
+
+    /// `20260721` / `2026-07-21` / `2026-07-21 10:21:00` → `yyyy-MM-dd`
+    private func normalizeDayString(_ rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "--" else { return nil }
+
+        if trimmed.count == 8, trimmed.allSatisfy(\.isNumber) {
+            let y = trimmed.prefix(4)
+            let m = trimmed.dropFirst(4).prefix(2)
+            let d = trimmed.suffix(2)
+            return "\(y)-\(m)-\(d)"
+        }
+
+        if trimmed.count >= 10 {
+            let day = String(trimmed.prefix(10))
+            if day.contains("-") { return day }
+        }
+        return trimmed
+    }
+
+    /// 组合估值展示时间：有 `min_time` 时拼成 `yyyy-MM-dd HH:mm`，列表右上角显示时刻；
+    /// 否则退回日期字符串，UI 显示 MM/dd。
+    private func composeEstimateTimestamp(day: String?, clock: String?) -> String? {
+        guard let day = normalizeDayString(day) else {
+            return nil
+        }
+        guard let clock, !clock.isEmpty else {
+            return day
+        }
+        // min_time 可能是 10:21:00 / 10:21
+        let parts = clock.split(separator: ":")
+        guard parts.count >= 2 else {
+            return "\(day) \(clock)"
+        }
+        let hh = parts[0]
+        let mm = parts[1]
+        return "\(day) \(hh):\(mm)"
     }
 
     /// 对齐 choose.funds v3.4.4 `getCalcGszzl` + `calcFundEstimateChange`：
